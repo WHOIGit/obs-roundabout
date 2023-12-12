@@ -33,6 +33,7 @@ labels = set_app_labels()
 # Utility functions for use with Inventory models
 # ------------------------------------------------------------------------------
 
+
 # Function to handle creating new Action records with meta data for different Action.OBJECT_TYPES
 # Current objects available = Inventory, Build
 def _create_action_history(
@@ -403,15 +404,16 @@ def _create_action_history(
 
         # Update InventoryDeployment record
         if isinstance(obj, Inventory):
-            inventory_deployment = obj.inventory_deployments.get_active_deployment()
-            # Only update date/cruise on full Build deployment, not individual item
-            if deployment_type == Action.BUILD_DEPLOYMENT:
-                inventory_deployment.deployment_to_field_date = action_date
-                inventory_deployment.cruise_deployed = deployment.cruise_deployed
-            else:
-                inventory_deployment.deployment_start_date = action_date
+            # Create InventoryDeployment record
+            inventory_deployment = InventoryDeployment.objects.create(
+                deployment=deployment,
+                inventory=obj,
+                assembly_part=obj.assembly_part,
+                deployment_start_date=action_date,
+                deployment_to_field_date=action_date,
+                cruise_deployed=deployment.cruise_deployed,
+            )
 
-            inventory_deployment.save()
             action_record.inventory_deployment = inventory_deployment
             action_record.created_at = action_date
             action_record.cruise = inventory_deployment.cruise_deployed

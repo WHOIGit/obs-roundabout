@@ -361,49 +361,48 @@ class DeploymentForm(forms.ModelForm):
 
 
 class DeploymentStartForm(forms.ModelForm):
-    # Add custom date field to allow user to pick date for the Action
-    date = forms.DateTimeField(
-        widget=DateTimePickerInput(
-            options={
-                # "format": "MM/DD/YYYY, HH:mm", # moment date-time format
-                "showClose": True,
-                "showClear": True,
-                "showTodayButton": False,
-            }
-        ),
-        initial=timezone.now,
-        help_text="Set all date/times to UTC time zone.",
-    )
-
     class Meta:
         model = Deployment
         fields = [
-            "location",
             "deployment_number",
+            "deployment_to_field_date",
+            "location",
             "build",
-            "deployed_location",
             "cruise_deployed",
-            "user_draft",
+            "latitude",
+            "longitude",
+            "depth",
+            "surveyed_latitude",
+            "surveyed_longitude",
+            "surveyed_depth",
         ]
 
         labels = {
-            "location": "Current Location",
+            "location": "%s Location" % (labels["label_deployments_app_singular"]),
             "deployment_number": "%s Number"
             % (labels["label_deployments_app_singular"]),
-            "deployed_location": "Final %s Location"
-            % (labels["label_deployments_app_singular"]),
             "cruise_deployed": "Cruise Deployed On",
-            "user_draft": "Reviewers",
         }
 
         widgets = {
             "build": forms.HiddenInput(),
+            "deployment_to_field_date": DateTimePickerInput(
+                options={
+                    # "format": "MM/DD/YYYY, HH:mm", # moment date-time format
+                    "showClose": True,
+                    "showClear": True,
+                    "showTodayButton": False,
+                }
+            ),
+        }
+
+        help_texts = {
+            "deployment_to_field_date": "Set all date/times to UTC time zone.",
         }
 
     def __init__(self, *args, **kwargs):
         super(DeploymentStartForm, self).__init__(*args, **kwargs)
-        self.fields["user_draft"].queryset = reviewer_users()
-        self.fields["user_draft"].required = False
+        self.initial["deployment_to_field_date"] = timezone.now
 
 
 class DeploymentActionBurninForm(forms.ModelForm):

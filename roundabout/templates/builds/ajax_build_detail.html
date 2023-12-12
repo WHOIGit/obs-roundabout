@@ -76,27 +76,11 @@
                 <hr>
 
                 {% if not build.is_deployed %}
-                    <a class="dropdown-item" href="#"
-                        data-detail-url="{% url 'builds:ajax_deployment_add' build.id %}"
-                        data-node-id="{{ build.id }}"
-                        data-location-id="{{ build.location.id}}"
-                        data-node-type="{{ node_type }}">Start {{ label_deployments_app_singular }}</a>
-                {% endif %}
-
-                {% if build.current_deployment.current_status == 'startdeployment' %}
-                    <a class="dropdown-item" href="#"
-                        data-detail-url="{% url 'builds:ajax_deployment_action' 'deploymentburnin' build.current_deployment.id build.id  %}"
-                        data-node-id="{{ build.id }}"
-                        data-location-id="{{ build.location.id}}"
-                        data-node-type="{{ node_type }}">Initiate Burn In</a>
-                {% endif %}
-
-                {% if build.current_deployment.current_status == 'deploymentburnin' %}
-                    <a class="dropdown-item" href="#"
-                        data-detail-url="{% url 'builds:ajax_deployment_action' 'deploymenttofield' build.current_deployment.id build.id %}"
-                        data-node-id="{{ build.id }}"
-                        data-location-id="{{ build.location.id}}"
-                        data-node-type="{{ node_type }}">Deploy to Field</a>
+                <a class="dropdown-item" href="#"
+                    data-detail-url="{% url 'builds:ajax_deployment_add' build.id %}"
+                    data-node-id="{{ build.id }}"
+                    data-location-id="{{ build.location.id}}"
+                    data-node-type="{{ node_type }}">Deploy to Field</a>
                 {% endif %}
 
                 {% if build.current_deployment.current_status == 'deploymenttofield' %}
@@ -106,14 +90,6 @@
                         data-node-id="{{ build.id }}"
                         data-location-id="{{ build.location.id}}"
                         data-node-type="{{ node_type }}">Recover from Field</a>
-                {% endif %}
-
-                {% if build.current_deployment.current_status == 'deploymentrecover' %}
-                    <a class="dropdown-item" href="#"
-                        data-detail-url="{% url 'builds:ajax_deployment_action' 'deploymentretire' build.current_deployment.id build.id %}"
-                        data-node-id="{{ build.id }}"
-                        data-location-id="{{ build.location.id}}"
-                        data-node-type="{{ node_type }}">End {{ label_deployments_app_singular }}</a>
                 {% endif %}
 
 
