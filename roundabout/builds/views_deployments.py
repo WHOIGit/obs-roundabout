@@ -97,6 +97,7 @@ class DeploymentAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):
         action_date = form.cleaned_data["deployment_to_field_date"]
         self.object = form.save()
         self.object.deployment_start_date = action_date
+        self.object.deployed_location = self.object.location
         self.object.save()
 
         # Create Deployment Action record
@@ -275,13 +276,9 @@ class DeploymentAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, UpdateView):
                     "from": str(orig_val),
                     "to": str(new_val),
                 }
-        form.instance.approved = False
+
         self.object = form.save(commit=True)
-        handle_reviewers(
-            form.instance.user_draft,
-            form.instance.user_approver,
-            form.cleaned_data["user_draft"],
-        )
+
         # _create_action_history(self.object, Action.UPDATE, self.request.user, data=data)
 
         # Create Build Action record for deployment
@@ -411,7 +408,7 @@ class DeploymentAjaxActionView(DeploymentAjaxUpdateView):
 
     def form_valid(self, form):
         # Update Deployment Action Record
-        previous_deployment = Deployment.objects.get(id=self.object.deployment_pk)
+        previous_deployment = Deployment.objects.get(id=self.object.pk)
         new_deployment = form.save(commit=False)
         data = dict(updated_values=dict())
         for field in form.fields:
@@ -426,7 +423,7 @@ class DeploymentAjaxActionView(DeploymentAjaxUpdateView):
         # _create_action_history(self.object, Action.UPDATE, self.request.user, data=data)
 
         action_type = self.kwargs["action_type"]
-        action_date = form.cleaned_data["date"]
+        action_date = form.cleaned_data["deployment_recovery_date"]
         # Set Detail and action_type variables
         if action_type == Action.DEPLOYMENTBURNIN:
             self.object.detail = "%s Burn In initiated at %s. " % (
@@ -442,11 +439,13 @@ class DeploymentAjaxActionView(DeploymentAjaxUpdateView):
             self.object.deployment_to_field_date = action_date
             self.object.deployed_location = self.object.location
         if action_type == Action.DEPLOYMENTRECOVER:
+            # also retire it
+            self.object.deployment_retire_date = action_date
             self.object.detail = "%s Recovered to: %s. " % (
                 self.object.deployment_number,
                 self.object.location,
             )
-            self.object.deployment_recovery_date = action_date
+
         if action_type == Action.DEPLOYMENTRETIRE:
             self.object.detail = "%s Ended." % (self.object.deployment_number)
             self.object.deployment_retire_date = action_date
@@ -456,11 +455,8 @@ class DeploymentAjaxActionView(DeploymentAjaxUpdateView):
         build = self.object.build
         build.detail = self.object.detail
         build.location = self.object.location
-
-        # If action_type is "recover", update Build deployment status
         if action_type == Action.DEPLOYMENTRECOVER:
             build.is_deployed = False
-
         build.save()
         # Create Build Action record for deployment
         build_record = _create_action_history(

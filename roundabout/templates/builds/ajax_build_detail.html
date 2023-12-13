@@ -239,14 +239,6 @@
         </div>
         <h5>
             <span id = 'badge_tag-current'>Current {{ label_deployments_app_singular }} Data</span>
-            {% if user in current_deployment.user_draft.all %}
-                <span id="review-badge-current" class="badge badge-pill badge-secondary">Review Requested</span>
-            {% endif %}
-            {% if current_deployment.approved %}
-                <span id="approve-badge-current" class="badge badge-pill badge-success">Approved</span>
-            {% else %}
-                <span id="progress-badge-current" class="badge badge-pill badge-info">In Progress</span>
-            {% endif %}
         </h5>
         
         <h6>{{ label_deployments_app_singular }} Status</h6>
