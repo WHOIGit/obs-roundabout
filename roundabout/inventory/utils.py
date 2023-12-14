@@ -449,6 +449,7 @@ def _create_action_history(
                 inventory_deployment.deployment_recovery_date = action_date
                 if deployment:
                     inventory_deployment.cruise_recovered = deployment.cruise_recovered
+            inventory_deployment.deployment_retire_date = action_date
             inventory_deployment.save()
             action_record.inventory_deployment = inventory_deployment
             action_record.build = obj.get_latest_build()

@@ -348,7 +348,7 @@ class DeploymentBase(models.Model):
             deployment_progress_bar = {
                 "bar_class": "bg-info",
                 "bar_width": 100,
-                "status_label": "Deployment Retired",
+                "status_label": "Deployment Recovered",
             }
         return deployment_progress_bar
 
