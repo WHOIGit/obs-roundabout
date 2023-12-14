@@ -46,6 +46,3 @@ jobs:
           docker tag $IMAGE_ID $IMAGE_ID:$VERSION
 
           docker push $IMAGE_ID:$VERSION
-
-      - name: Stopping RDB application
-        run: docker-compose --file docker-compose-testing.yml down
