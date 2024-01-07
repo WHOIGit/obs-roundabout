@@ -190,6 +190,7 @@ class ZipExport(ListView, LoginRequiredMixin):
 
 ## Bulk Export Classes ##
 
+
 # Calibrations Only
 class ExportCalibrationEvents(ZipExport):
     model = CalibrationEvent
@@ -337,7 +338,6 @@ class ExportCalibrationEvents_withConfigs(ZipExport):
 
     @classmethod
     def get_queryset(cls):
-
         # most recent first
         calib_qs = (
             CalibrationEvent.objects.all()
@@ -804,7 +804,6 @@ class ExportDeployments(ZipExport):
         def depl_row(depl_obj, attribs):
             row = []
             for att in attribs:
-
                 if att == "1":
                     val = 1  # versionNumber
                 elif att == "deployment.config_event('Nominal_Depth').config_value":
@@ -882,7 +881,6 @@ class ExportCI(ZipExport):
 
     @classmethod
     def build_zip(cls, zf, objs):
-
         # Deployment csv's
         deployments = Deployment.objects.all()
         ExportDeployments.build_zip(zf, deployments, subdir="deployment")
@@ -949,8 +947,10 @@ class ExportOBSAssemblyBuilds(DetailView, LoginRequiredMixin):
             "Notes",
             "Location",
             "Deployment Number",
-            "Lat",
-            "Lon",
+            "Surveyed Lat",
+            "Surveyed Lon",
+            "Drop Lat",
+            "Drop Lon",
         ]
 
         def field_safeget(vals, fieldname):
@@ -1001,8 +1001,14 @@ class ExportOBSAssemblyBuilds(DetailView, LoginRequiredMixin):
                 row_num,
                 depl.deployment_number if depl else "",
             )
-            nested_update(data, ["Lat"], row_num, depl.latitude if depl else "")
-            nested_update(data, ["Lon"], row_num, depl.longitude if depl else "")
+            nested_update(
+                data, ["Surveyed Lat"], row_num, depl.surveyed_latitude if depl else ""
+            )
+            nested_update(
+                data, ["Surveyed Lon"], row_num, depl.surveyed_longitude if depl else ""
+            )
+            nested_update(data, ["Drop Lat"], row_num, depl.latitude if depl else "")
+            nested_update(data, ["Drop Lon"], row_num, depl.longitude if depl else "")
 
             inv_lineage_keylist = []
 
@@ -1115,7 +1121,6 @@ class ExportOBSBuildsAll(ZipExport):
 
     @classmethod
     def build_zip(cls, zf, objs, subdir=None):
-
         for assm in objs:
             csv_fname = ExportOBSAssemblyBuilds.get_filename(assm)
 

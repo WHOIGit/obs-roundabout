@@ -117,6 +117,25 @@
             </tr>
             {% endif %}
             {% if deployment.current_status != 'startdeployment' and deployment.current_status != 'deploymentburnin' %}
+                {% if deployment.surveyed_latitude %}
+                <tr>
+                    <th>Surveyed Latitude</th>
+                    <td>{{ deployment.surveyed_latitude }}</td>
+                </tr>
+                {% endif %}
+                {% if deployment.surveyed_longitude %}
+                <tr>
+                    <th>Surveyed Longitude</th>
+                    <td>{{ deployment.surveyed_longitude }}</td>
+                </tr>
+                {% endif %}
+                {% if deployment.surveyed_depth %}
+                <tr>
+                    <th>Surveyed Depth</th>
+                    <td>{{ deployment.surveyed_depth }} m</td>
+                </tr>
+                {% endif %}    
+                    
                 {% if deployment.latitude %}
                 <tr>
                     <th>Drop Latitude</th>
@@ -136,24 +155,7 @@
                 </tr>
                 {% endif %}
 
-                {% if deployment.surveyed_latitude %}
-                <tr>
-                    <th>Surveyed Latitude</th>
-                    <td>{{ deployment.surveyed_latitude }}</td>
-                </tr>
-                {% endif %}
-                {% if deployment.surveyed_longitude %}
-                <tr>
-                    <th>Surveyed Longitude</th>
-                    <td>{{ deployment.surveyed_longitude }}</td>
-                </tr>
-                {% endif %}
-                {% if deployment.surveyed_depth %}
-                <tr>
-                    <th>Surveyed Depth</th>
-                    <td>{{ deployment.surveyed_depth }} m</td>
-                </tr>
-                {% endif %}
+               
             {% endif %}
         </tbody>
     </table>

@@ -303,21 +303,40 @@
                         <th>{{ label_deployments_app_singular }} to Field Date</th>
                         <td>{{ current_deployment.deployment_to_field_date|date:"n/j/Y H:i" }}</td>
                     </tr>
+                    {% if current_deployment.surveyed_latitude %}
+                    <tr>
+                        <th>Surveyed Latitude</th>
+                        <td>{{ current_deployment.surveyed_latitude }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if current_deployment.surveyed_longitude %}
+                    <tr>
+                        <th>Surveyed Longitude</th>
+                        <td>{{ current_deployment.surveyed_longitude }}</td>
+                    </tr>
+                    {% endif %}
+                    {% if current_deployment.surveyed_depth %}
+                    <tr>
+                        <th>Surveyed Depth</th>
+                        <td>{{ current_deployment.surveyed_depth }} m</td>
+                    </tr>
+                    {% endif %}
+
                     {% if current_deployment.latitude %}
                     <tr>
-                        <th>Latitude</th>
+                        <th>Drop Latitude</th>
                         <td>{{ current_deployment.latitude }}</td>
                     </tr>
                     {% endif %}
                     {% if current_deployment.longitude %}
                     <tr>
-                        <th>Longitude</th>
+                        <th>Drop Longitude</th>
                         <td>{{ current_deployment.longitude }}</td>
                     </tr>
                     {% endif %}
                     {% if current_deployment.depth %}
                     <tr>
-                        <th>Depth</th>
+                        <th>Drop Depth</th>
                         <td>{{ current_deployment.depth }} m</td>
                     </tr>
                     {% endif %}
