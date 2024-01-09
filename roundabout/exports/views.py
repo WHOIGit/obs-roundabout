@@ -951,6 +951,8 @@ class ExportOBSAssemblyBuilds(DetailView, LoginRequiredMixin):
             "Surveyed Lon",
             "Drop Lat",
             "Drop Lon",
+            "Surveyed Depth",
+            "Drop Depth",
         ]
 
         def field_safeget(vals, fieldname):
@@ -1009,6 +1011,10 @@ class ExportOBSAssemblyBuilds(DetailView, LoginRequiredMixin):
             )
             nested_update(data, ["Drop Lat"], row_num, depl.latitude if depl else "")
             nested_update(data, ["Drop Lon"], row_num, depl.longitude if depl else "")
+            nested_update(
+                data, ["Surveyed Depth"], row_num, depl.surveyed_depth if depl else ""
+            )
+            nested_update(data, ["Drop Depth"], row_num, depl.depth if depl else "")
 
             inv_lineage_keylist = []
 
