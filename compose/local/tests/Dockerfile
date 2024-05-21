@@ -8,8 +8,6 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends apt-utils
 RUN apt-get update
 
-RUN apt-get install curl -y && apt-get install npm -y
-
 RUN apt-get install -y wget && apt install -y unzip
 
 # At root dir
@@ -35,6 +33,7 @@ RUN echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesourc
      | tee /etc/apt/sources.list.d/nodesource.list
 RUN apt-get update
 RUN apt-get install nodejs -y
+RUN apt-get install curl -y && apt-get install npm -y
 
 # npm WARN EBADENGINE package: 'jsdom@20.0.0' with Node 12.x
 RUN npm install jsdom@19.0.0
