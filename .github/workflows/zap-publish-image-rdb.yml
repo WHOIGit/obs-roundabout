@@ -16,7 +16,7 @@ jobs:
     name: OWASP
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
       - name: Build RDB project 
         run: |
           
@@ -46,6 +46,9 @@ jobs:
           docker-compose -f docker-compose-testing.yml build
           docker-compose -f docker-compose-testing.yml up --detach
           sh -c "until curl -Is http://localhost:8000; do echo 'waiting for http://localhost:8000'; sleep 10; done"
+
+          # Pull the OWASP ZAP Docker Image
+          docker pull owasp/zap2docker-stable
 
           # Run OWASP ZAP Full Scan
           pwd
