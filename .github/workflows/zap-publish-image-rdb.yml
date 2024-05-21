@@ -48,7 +48,7 @@ jobs:
           sh -c "until curl -Is http://localhost:8000; do echo 'waiting for http://localhost:8000'; sleep 10; done"
 
           # Pull the OWASP ZAP Docker Image
-          docker pull owasp/zap2docker-stable
+          docker pull zaproxy/zap-stable
 
           # Run OWASP ZAP Full Scan
           pwd
@@ -59,7 +59,7 @@ jobs:
 
           docker run --network roundabout-network \
              -v "/$(pwd):/zap/wrk/:rw" \
-             -t owasp/zap2docker-stable zap-baseline.py -j \
+             -t zaproxy/zap-stable zap-baseline.py -j \
              -t http://django:8000 \
              -I   \
              -d \
