@@ -22,7 +22,7 @@ import json
 from django import forms
 from django.db import models
 from django.core import validators
-from django.contrib.postgres.forms.jsonb import JSONField
+from django.contrib.postgres.fields.jsonb import JSONField
 from django.core.exceptions import ValidationError
 from dateutil import parser
 

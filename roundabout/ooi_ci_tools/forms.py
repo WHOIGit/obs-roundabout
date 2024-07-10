@@ -503,14 +503,30 @@ def validate_import_config_vessels(import_config, reader, filename):
                     )
     return True
 
+
+#generic class for handling multiple file uploads
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+class MultipleFileField(forms.FileField):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("widget", MultipleFileInput())
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        single_file_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            result = [single_file_clean(d, initial) for d in data]
+        else:
+            result = [single_file_clean(data, initial)]
+        return result
+
+
+
 # Handles Deployment CSV file submission and field validation
 class ImportDeploymentsForm(forms.Form):
     deployments_csv = forms.FileField(
-        widget=forms.ClearableFileInput(
-            attrs={
-                'multiple': True
-            }
-        ),
+        widget=MultipleFileField,
         required=False
     )
     user_draft = forms.ModelMultipleChoiceField(
@@ -640,11 +656,7 @@ class ImportDeploymentsForm(forms.Form):
 # Handles Vessel CSV file submission and field validation
 class ImportVesselsForm(forms.Form):
     vessels_csv = forms.FileField(
-        widget=forms.ClearableFileInput(
-            attrs={
-                'multiple': True
-            }
-        ),
+        widget=MultipleFileField,
         required=False
     )
     user_draft = forms.ModelMultipleChoiceField(
@@ -778,11 +790,7 @@ class ImportVesselsForm(forms.Form):
 # Handles Cruise CSV file submission and field validation
 class ImportCruisesForm(forms.Form):
     cruises_csv = forms.FileField(
-        widget=forms.ClearableFileInput(
-            attrs={
-                'multiple': True
-            }
-        ),
+        widget=MultipleFileField,
         required=False
     )
     user_draft = forms.ModelMultipleChoiceField(
@@ -1002,14 +1010,11 @@ def validate_cal_files(csv_files,ext_files):
                                 params={'row': idx, 'filename': cal_csv.name}
                             )
 
+
 # Handles Calibration CSV file submission and field validation
 class ImportCalibrationForm(forms.Form):
     calibration_csv = forms.FileField(
-        widget=forms.ClearableFileInput(
-            attrs={
-                'multiple': True
-            }
-        ),
+        widget=MultipleFileField,
         required = False
     )
     user_draft = forms.ModelMultipleChoiceField(
@@ -1104,11 +1109,7 @@ class ImportConfigForm(forms.ModelForm):
 # Handles Reference Designator CSV file submission and field validation
 class ImportReferenceDesignatorForm(forms.Form):
     refdes_csv = forms.FileField(
-        widget=forms.ClearableFileInput(
-            attrs={
-                'multiple': True
-            }
-        ),
+        widget=MultipleFileField,
         required = False
     )
     user_draft = forms.ModelMultipleChoiceField(
@@ -1141,11 +1142,7 @@ class ImportReferenceDesignatorForm(forms.Form):
 # Handles Bulk Upload CSV file submission and field validation
 class ImportBulkUploadForm(forms.Form):
     bulk_csv = forms.FileField(
-        widget=forms.ClearableFileInput(
-            attrs={
-                'multiple': True
-            }
-        ),
+        widget=MultipleFileField,
         required = False
     )
     user_draft = forms.ModelMultipleChoiceField(
