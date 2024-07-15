@@ -34,6 +34,8 @@ RUN echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesourc
 RUN apt-get update
 RUN apt-get install nodejs -y
 RUN apt-get install curl -y
+RUN apt-get install npm -y
+
 
 # npm WARN EBADENGINE package: 'jsdom@20.0.0' with Node 12.x
 RUN npm install jsdom@19.0.0
