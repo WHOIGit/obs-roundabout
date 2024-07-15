@@ -293,7 +293,7 @@ class BuildAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -306,7 +306,7 @@ class BuildAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):
             return response
 
     def form_invalid(self, form, formset):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if not form.is_valid():
                 # show form errors before formset errors
                 return JsonResponse(form.errors, status=400)
@@ -365,7 +365,7 @@ class BuildAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, UpdateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -378,7 +378,7 @@ class BuildAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, UpdateView):
             return response
 
     def form_invalid(self, form, formset):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if not form.is_valid():
                 # show form errors before formset errors
                 return JsonResponse(form.errors, status=400)
@@ -442,7 +442,7 @@ class BuildAjaxActionView(BuildAjaxUpdateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -490,7 +490,7 @@ class BuildNoteAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -594,7 +594,7 @@ class BuildAjaxSnapshotCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView)
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",

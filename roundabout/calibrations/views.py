@@ -142,7 +142,7 @@ class EventValueSetAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
         cache.set('thrsh_evnt', self.object)
         thrsh_job = async_update_cal_thresholds.delay()
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -154,7 +154,7 @@ class EventValueSetAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
             return response
 
     def form_invalid(self, form, event_valueset_form, link_formset):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if not form.is_valid():
                 return JsonResponse(form.errors, status=400)
             elif not event_valueset_form.is_valid():
@@ -261,7 +261,7 @@ class EventValueSetUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormM
         thrsh_job = async_update_cal_thresholds.delay()
 
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -273,7 +273,7 @@ class EventValueSetUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormM
             return response
 
     def form_invalid(self, form, event_valueset_form, link_formset):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if not form.is_valid():
                 return JsonResponse(form.errors, status=400)
             elif not event_valueset_form.is_valid():
@@ -378,7 +378,7 @@ class ValueSetValueUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormM
         valueset_value_form.instance = self.object
         valueset_value_form.save()
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -390,7 +390,7 @@ class ValueSetValueUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormM
             return response
 
     def form_invalid(self, valueset_value_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if valueset_value_form.errors:
                 data = valueset_value_form.errors
                 return JsonResponse(
@@ -473,7 +473,7 @@ class EventCoeffNameAdd(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormMix
         _create_action_history(self.object, Action.ADD, self.request.user)
         job = check_events.delay()
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -485,7 +485,7 @@ class EventCoeffNameAdd(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormMix
             return response
 
     def form_invalid(self, form, part_calname_form, part_cal_copy_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -580,7 +580,7 @@ class EventCoeffNameUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxForm
         _create_action_history(self.object, Action.UPDATE, self.request.user)
         job = check_events.delay()
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -592,7 +592,7 @@ class EventCoeffNameUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxForm
             return response
 
     def form_invalid(self, form, part_calname_form, part_cal_copy_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(

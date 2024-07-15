@@ -66,7 +66,7 @@ class TagAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormMix
     def form_valid(self, form):
         self.object = form.save()
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -78,7 +78,7 @@ class TagAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormMix
             return HttpResponseRedirect(self.get_success_url())
 
     def form_invalid(self, form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(data, status=400)
