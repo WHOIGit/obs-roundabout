@@ -1,4 +1,4 @@
-FROM ubuntu:latest
+FROM ubuntu:24.04
 
 # Required for nodejs 15+
 WORKDIR /tests
@@ -16,26 +16,9 @@ COPY ./tests/*.js /tests/
 COPY ./tests/*.csv /tests/
 COPY ./tests/*.ext /tests/
 
-# The default Ubuntu 22.04 repository contains an old version 12.22.9 of Node.js
-# Need to remove it
-RUN apt remove -y nodejs
-RUN apt remove -y nodejs-doc
-RUN apt-get -y autoremove
-# Selenium Webdriver version 4.8.0 requires node 14 or higher
-#RUN curl -sL https://deb.nodesource.com/setup_16.x | bash - 
-#RUN apt-get install -y nodejs
-# Above node install is depreciated with a 60 second wait
-RUN apt-get update && apt-get install -y ca-certificates curl gnupg
-RUN mkdir -p /etc/apt/keyrings  
-RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
-     | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
-RUN echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_16.x nodistro main" \
-     | tee /etc/apt/sources.list.d/nodesource.list
 RUN apt-get update
-RUN apt-get install nodejs -y
 RUN apt-get install curl -y
 RUN apt-get install npm -y
-
 
 # npm WARN EBADENGINE package: 'jsdom@20.0.0' with Node 12.x
 RUN npm install jsdom@19.0.0
