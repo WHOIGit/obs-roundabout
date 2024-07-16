@@ -214,7 +214,7 @@ class AssemblyAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFo
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -227,7 +227,7 @@ class AssemblyAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFo
             return response
 
     def form_invalid(self, form, documentation_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if not form.is_valid():
                 # show form errors before formset errors
                 return JsonResponse(form.errors, status=400)
@@ -284,7 +284,7 @@ class AssemblyAjaxCopyView(AssemblyAjaxCreateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -311,7 +311,7 @@ class AssemblyAjaxUpdateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFo
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -469,7 +469,7 @@ class AssemblyRevisionAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -482,7 +482,7 @@ class AssemblyRevisionAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin
             return response
 
     def form_invalid(self, form, documentation_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if not form.is_valid():
                 # show form errors before formset errors
                 return JsonResponse(form.errors, status=400)
@@ -529,7 +529,7 @@ class AssemblyRevisionAjaxUpdateView(LoginRequiredMixin, PermissionRequiredMixin
         documentation_form.save()
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -542,7 +542,7 @@ class AssemblyRevisionAjaxUpdateView(LoginRequiredMixin, PermissionRequiredMixin
             return response
 
     def form_invalid(self, form, documentation_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if not form.is_valid():
                 # show form errors before formset errors
                 return JsonResponse(form.errors, status=400)
@@ -667,7 +667,7 @@ class AssemblyPartAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin, Aj
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -745,7 +745,7 @@ class AssemblyPartAjaxUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Aj
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -931,7 +931,7 @@ class EventReferenceDesignatorAdd(LoginRequiredMixin, AjaxFormMixin, CreateView)
         handle_reviewers(form.instance.user_draft, form.instance.user_approver, form.cleaned_data['user_draft'])
         _create_action_history(self.object, Action.ADD, self.request.user)
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -943,7 +943,7 @@ class EventReferenceDesignatorAdd(LoginRequiredMixin, AjaxFormMixin, CreateView)
             return response
 
     def form_invalid(self, form, event_referencedesignator_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -1021,7 +1021,7 @@ class EventReferenceDesignatorUpdate(LoginRequiredMixin, AjaxFormMixin, CreateVi
         for assm in self.object.reference_designator.assembly_parts.all():
             _create_action_history(assm.assemblypart_referencedesignatorevents.first(), Action.UPDATE, self.request.user)
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -1033,7 +1033,7 @@ class EventReferenceDesignatorUpdate(LoginRequiredMixin, AjaxFormMixin, CreateVi
             return response
 
     def form_invalid(self, form, event_referencedesignator_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(

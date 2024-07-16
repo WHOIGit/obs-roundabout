@@ -245,7 +245,7 @@ class CruiseAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):
                 link.parent = self.object
                 link.save()
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 "message": "Successfully submitted form data.",
@@ -258,7 +258,7 @@ class CruiseAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):
             return HttpResponseRedirect(self.get_success_url())
 
     def form_invalid(self, form, formset):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if not form.is_valid():
                 # show form errors before formset errors
                 return JsonResponse(form.errors, status=400)
@@ -329,7 +329,7 @@ class CruiseAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, UpdateView):
                     link.parent = self.object
                     link.save()
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 "message": "Successfully submitted form data.",
@@ -342,7 +342,7 @@ class CruiseAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, UpdateView):
             return HttpResponseRedirect(self.get_success_url())
 
     def form_invalid(self, form, formset):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if not form.is_valid():
                 # show form errors before formset errors
                 return JsonResponse(form.errors, status=400)

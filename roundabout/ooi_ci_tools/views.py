@@ -311,7 +311,7 @@ class InvBulkUploadEventUpdate(LoginRequiredMixin, AjaxFormMixin, UpdateView):
         _create_action_history(self.object, Action.UPDATE, self.request.user, filename = file_name)
         job = check_events.delay()
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -324,7 +324,7 @@ class InvBulkUploadEventUpdate(LoginRequiredMixin, AjaxFormMixin, UpdateView):
 
 
     def form_invalid(self, form, bulk_file_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -405,7 +405,7 @@ class PartBulkUploadEventUpdate(LoginRequiredMixin, AjaxFormMixin, UpdateView):
         _create_action_history(self.object, Action.UPDATE, self.request.user)
         job = check_events.delay()
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -418,7 +418,7 @@ class PartBulkUploadEventUpdate(LoginRequiredMixin, AjaxFormMixin, UpdateView):
 
 
     def form_invalid(self, form, bulk_file_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
