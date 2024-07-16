@@ -22,7 +22,7 @@
 from django import forms
 from django.forms.models import inlineformset_factory
 from django.utils import timezone
-from bootstrap_datepicker_plus import DatePickerInput, DateTimePickerInput
+from bootstrap_datepicker_plus.widgets import DatePickerInput, DateTimePickerInput
 from django.contrib.sites.models import Site
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Fieldset, ButtonHolder, Submit, Div, Field
