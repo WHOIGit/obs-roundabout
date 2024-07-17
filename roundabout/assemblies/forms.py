@@ -27,7 +27,7 @@ from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
 from django_summernote.widgets import SummernoteWidget
-from bootstrap_datepicker_plus import DatePickerInput, DateTimePickerInput
+from bootstrap_datepicker_plus.widgets import DatePickerInput, DateTimePickerInput
 
 from roundabout.ooi_ci_tools.models import ReferenceDesignator, ReferenceDesignatorEvent
 from roundabout.ooi_ci_tools.forms import validate_reference_designator

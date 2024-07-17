@@ -25,7 +25,7 @@ from roundabout.inventory.models import Inventory, Deployment
 from roundabout.parts.models import Part
 from roundabout.users.models import User
 from django.forms.models import inlineformset_factory, BaseInlineFormSet
-from bootstrap_datepicker_plus import DatePickerInput
+from bootstrap_datepicker_plus.widgets import DatePickerInput
 from sigfig import round
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
