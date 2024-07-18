@@ -131,7 +131,7 @@ var password;
         }
 
         await driver.findElement(By.id("id_field_default_value")).sendKeys("20004");
-        await driver.findElement(By.id("id_global_for_part_types_6")).click();  //Structural
+        await driver.findElement(By.id("id_global_for_part_types_5")).click();  //Structural
         await driver.findElement(By.css(".btn-primary")).click();
 
         // Import and create new Inventory Item - non CI
