@@ -230,6 +230,17 @@ class CommentDelete(LoginRequiredMixin, DeleteView):
         self.object.delete()
         return JsonResponse(data)
 
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.id,
+            'parent_type': 'comment',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
     def get_success_url(self):
         return reverse_lazy('inventory:ajax_inventory_detail', args=(self.object.action.inventory.id, ))
 
@@ -469,6 +480,16 @@ class InvBulkUploadEventDelete(LoginRequiredMixin, AjaxFormMixin, DeleteView):
         job = check_events.delay()
         return JsonResponse(data)
 
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'object_type': 'bulk_upload_event',
+        }
+        self.object.delete()
+        job = check_events.delay()
+        return JsonResponse(data)
+
     def get_success_url(self):
         inv_id = self.kwargs['inv_id']
         return reverse('inventory:ajax_inventory_detail', args=(inv_id, ))
@@ -487,6 +508,16 @@ class PartBulkUploadEventDelete(LoginRequiredMixin, AjaxFormMixin, DeleteView):
         return context
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'object_type': 'bulk_upload_event',
+        }
+        self.object.delete()
+        job = check_events.delay()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",

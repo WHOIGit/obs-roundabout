@@ -107,3 +107,8 @@ class TagAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteView)
         self.object = self.get_object()
         self.object.delete()
         return HttpResponseRedirect( self.get_success_url() )
+    
+    def form_valid(self,form):
+        self.object = self.get_object()
+        self.object.delete()
+        return HttpResponseRedirect( self.get_success_url() )

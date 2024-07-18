@@ -549,6 +549,18 @@ class BuildAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteVie
 
         return JsonResponse(data)
 
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.location.id,
+            'parent_type': 'locations',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+
+        return JsonResponse(data)
+
 
 # Create a new Snapshot copy of a Build
 class BuildAjaxSnapshotCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):

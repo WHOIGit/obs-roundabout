@@ -342,6 +342,17 @@ class ConfigEventValueDelete(LoginRequiredMixin, PermissionRequiredMixin, Delete
         self.object.delete()
         return JsonResponse(data)
 
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.inventory.id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
     def get_success_url(self):
         return reverse_lazy('inventory:ajax_inventory_detail', args=(self.object.inventory.id, ))
 
@@ -590,6 +601,18 @@ class EventConfigNameDelete(LoginRequiredMixin, PermissionRequiredMixin, DeleteV
         job = check_events.delay()
         return JsonResponse(data)
 
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.part.id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        job = check_events.delay()
+        return JsonResponse(data)
+
     def get_success_url(self):
         return reverse_lazy('parts:ajax_part_detail', args=(self.object.part.id, ))
 
@@ -820,6 +843,17 @@ class EventDefaultDelete(LoginRequiredMixin, PermissionRequiredMixin, DeleteView
         self.object.delete()
         return JsonResponse(data)
 
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.inventory.id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
     def get_success_url(self):
         return reverse_lazy('inventory:ajax_inventory_detail', args=(self.object.inventory.id, ))
 
@@ -1040,6 +1074,17 @@ class EventConfigDefaultDelete(LoginRequiredMixin, PermissionRequiredMixin, Dele
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.assembly_part.id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",

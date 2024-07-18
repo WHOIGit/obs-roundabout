@@ -345,6 +345,17 @@ class AssemblyAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Delete
 
         return JsonResponse(data)
 
+    def form_valid(self, form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.id,
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+
+        return JsonResponse(data)
+
 
 ### CBV views for AssemblyRevision model ###
 
@@ -575,6 +586,17 @@ class AssemblyRevisionAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin
 
         return JsonResponse(data)
 
+    def form_valid(self, form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.id,
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+
+        return JsonResponse(data)
+
 
 ### CBV views for AssemblyPart model ###
 
@@ -765,6 +787,28 @@ class AssemblyPartAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin, De
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+
+        # Need to check if there's Inventory on this AssemblyPart. If so, need to bump them off the Build
+        if self.object.inventory.exists():
+            for item in self.object.inventory.all():
+                item.detail = 'Removed from %s' % (item.build)
+                action_record = Action.objects.create(action_type='removefrombuild', detail=item.detail, location=item.location,
+                                                      user=self.request.user, inventory=item)
+                item.build = None
+                item.assembly_part = None
+                item.parent = None
+                item.save()
+
+        data = {
+            'message': "Successfully submitted form data.",
+            'object_type': self.object.get_object_type(),
+            'parent_id': self.object.parent_id,
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self, form):
         self.object = self.get_object()
 
         # Need to check if there's Inventory on this AssemblyPart. If so, need to bump them off the Build
@@ -1071,6 +1115,17 @@ class EventReferenceDesignatorDelete(LoginRequiredMixin, DeleteView):
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.id,
+            'parent_type': 'comment',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self, form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",

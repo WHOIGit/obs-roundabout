@@ -361,6 +361,17 @@ class PartsAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteVie
         }
         self.object.delete()
         return JsonResponse(data)
+    
+    def form_valid(self, form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.part_type_id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
 
 
 class PartsAjaxCreateRevisionView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormMixin, CreateView):
@@ -511,6 +522,17 @@ class PartsAjaxDeleteRevisionView(LoginRequiredMixin, PermissionRequiredMixin, D
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.part.id,
+            'parent_type': self.object.part.get_object_type(),
+            'object_type': self.object.part.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",
