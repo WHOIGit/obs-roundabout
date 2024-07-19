@@ -171,10 +171,7 @@ class MultipleFileField(forms.FileField):
 
 
 class ImportCalibrationForm(forms.Form):
-    cal_csv = forms.FileField(
-        widget=MultipleFileField,
-        label = 'Generates Calibration data '
-    )
+    cal_csv = MultipleFileField(required=False)
     user_draft = forms.ModelMultipleChoiceField(
         queryset = User.objects.all().exclude(groups__name__in=['inventory only']).order_by('username'),
         required=False,

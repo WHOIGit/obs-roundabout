@@ -508,6 +508,14 @@ def validate_import_config_vessels(import_config, reader, filename):
 class MultipleFileInput(forms.ClearableFileInput):
     allow_multiple_selected = True
 
+    def __init__(self, attrs=None):
+        attrs = attrs or {}
+        attrs['multiple'] = 'multiple'
+        super().__init__(attrs)
+
+    def value_from_datadict(self, data, files, name):
+        return files.getlist(name)
+
 class MultipleFileField(forms.FileField):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault("widget", MultipleFileInput())
@@ -525,10 +533,7 @@ class MultipleFileField(forms.FileField):
 
 # Handles Deployment CSV file submission and field validation
 class ImportDeploymentsForm(forms.Form):
-    deployments_csv = forms.FileField(
-        widget=MultipleFileField,
-        required=False
-    )
+    deployments_csv = MultipleFileField(required=False)
     user_draft = forms.ModelMultipleChoiceField(
         queryset = User.objects.all().exclude(groups__name__in=['inventory only']).order_by('username'),
         required=False,
@@ -655,10 +660,7 @@ class ImportDeploymentsForm(forms.Form):
 
 # Handles Vessel CSV file submission and field validation
 class ImportVesselsForm(forms.Form):
-    vessels_csv = forms.FileField(
-        widget=MultipleFileField,
-        required=False
-    )
+    vessels_csv = MultipleFileField(required=False)
     user_draft = forms.ModelMultipleChoiceField(
         queryset = User.objects.all().exclude(groups__name__in=['inventory only']).order_by('username'),
         required=False,
@@ -789,10 +791,7 @@ class ImportVesselsForm(forms.Form):
 
 # Handles Cruise CSV file submission and field validation
 class ImportCruisesForm(forms.Form):
-    cruises_csv = forms.FileField(
-        widget=MultipleFileField,
-        required=False
-    )
+    cruises_csv = MultipleFileField(required=False)
     user_draft = forms.ModelMultipleChoiceField(
         queryset = User.objects.all().exclude(groups__name__in=['inventory only']).order_by('username'),
         required=False,
@@ -1013,10 +1012,7 @@ def validate_cal_files(csv_files,ext_files):
 
 # Handles Calibration CSV file submission and field validation
 class ImportCalibrationForm(forms.Form):
-    calibration_csv = forms.FileField(
-        widget=MultipleFileField,
-        required = False
-    )
+    calibration_csv = MultipleFileField(required=False)
     user_draft = forms.ModelMultipleChoiceField(
         queryset = User.objects.all().exclude(groups__name__in=['inventory only']).order_by('username'),
         required=False,
@@ -1108,10 +1104,7 @@ class ImportConfigForm(forms.ModelForm):
 
 # Handles Reference Designator CSV file submission and field validation
 class ImportReferenceDesignatorForm(forms.Form):
-    refdes_csv = forms.FileField(
-        widget=MultipleFileField,
-        required = False
-    )
+    refdes_csv = MultipleFileField(required=False)
     user_draft = forms.ModelMultipleChoiceField(
         queryset = User.objects.all().exclude(groups__name__in=['inventory only']).order_by('username'),
         required=False,
@@ -1141,10 +1134,7 @@ class ImportReferenceDesignatorForm(forms.Form):
 
 # Handles Bulk Upload CSV file submission and field validation
 class ImportBulkUploadForm(forms.Form):
-    bulk_csv = forms.FileField(
-        widget=MultipleFileField,
-        required = False
-    )
+    bulk_csv = MultipleFileField(required=False)
     user_draft = forms.ModelMultipleChoiceField(
         queryset = User.objects.all().exclude(groups__name__in=['inventory only']).order_by('username'),
         required=False,
