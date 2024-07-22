@@ -2107,6 +2107,15 @@ class InventoryAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Delet
         self.object.delete()
         return JsonResponse(data)
 
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            "message": "Successfully submitted form data.",
+            "parent_id": self.object.parent_id,
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
 
 # Base Views
 
@@ -2281,6 +2290,15 @@ class DeploymentSnapshotAjaxDeleteView(DeleteView):
     template_name = "inventory/ajax_deployment_confirm_delete.html"
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            "message": "Successfully submitted form data.",
+            "parent_id": self.object.location_id,
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
         self.object = self.get_object()
         data = {
             "message": "Successfully submitted form data.",

@@ -372,6 +372,8 @@ IMPORT_EXPORT_USE_TRANSACTIONS = True
 DATA_UPLOAD_MAX_NUMBER_FIELDS = None
 DATA_UPLOAD_MAX_MEMORY_SIZE = None
 
+DEFAULT_AUTO_FIELD='django.db.models.AutoField' 
+
 # Celery Settings
 if USE_TZ:
     # http://docs.celeryproject.org/en/latest/userguide/configuration.html#std:setting-timezone

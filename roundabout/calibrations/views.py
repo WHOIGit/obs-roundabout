@@ -314,6 +314,18 @@ class EventValueSetDelete(LoginRequiredMixin, PermissionRequiredMixin, DeleteVie
         thrsh_job = async_update_cal_thresholds.delay()
         return JsonResponse(data)
 
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.inventory.id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        thrsh_job = async_update_cal_thresholds.delay()
+        return JsonResponse(data)
+
     def get_success_url(self):
         return reverse('inventory:ajax_inventory_detail', args=(self.object.inventory.id,))
 
@@ -637,6 +649,18 @@ class EventCoeffNameDelete(LoginRequiredMixin, PermissionRequiredMixin, DeleteVi
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.part.id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        job = check_events.delay()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",
