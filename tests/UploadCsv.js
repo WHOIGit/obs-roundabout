@@ -135,7 +135,10 @@ var filename, filename_ext;
         if (erroridx == 0) {
 
            // Don't trust Import Complete has actually imported all the Cruises
-           await new Promise(r => setTimeout(r, 20000));
+           while ((await driver.findElements(By.id("navbarAdmintools"))).length == 0) {
+                await new Promise(r => setTimeout(r, 2000));
+                console.log("Wait 2 seconds for Bulk Download Tool.");
+           }
 
            // Export Cruises - CI Version
            await driver.findElement(By.id("navbarAdmintools")).click()
@@ -349,7 +352,10 @@ var filename, filename_ext;
             }
         }
         // Don't trust Import Complete has actually imported all the Calibrations
-        await new Promise(r => setTimeout(r, 20000));
+        while ((await driver.findElements(By.id("navbarAdmintools"))).length == 0) {
+            await new Promise(r => setTimeout(r, 2000));
+            console.log("Wait 2 seconds for Bulk Download2 Tool.");
+        }
 
         // Bulk Download Calibrations
         await driver.findElement(By.id("navbarAdmintools")).click()

@@ -91,7 +91,7 @@ var password;
         await driver.findElement(By.linkText("Add User")).click()
         await driver.findElement(By.id("id_username")).sendKeys("tech")
         await driver.findElement(By.id("id_password")).sendKeys("tech")
-        await driver.findElement(By.id("id_groups_1")).click()
+        await driver.findElement(By.id("id_groups_0")).click()
         await driver.findElement(By.css(".btn-primary")).click()
         while ((await driver.findElements(By.linkText("Edit"))).length == 0) {
             await new Promise(r => setTimeout(r, 2000));
@@ -102,7 +102,7 @@ var password;
         await driver.findElement(By.linkText("Add User")).click()
         await driver.findElement(By.id("id_username")).sendKeys("inv")
         await driver.findElement(By.id("id_password")).sendKeys("inv")
-        await driver.findElement(By.id("id_groups_2")).click()
+        await driver.findElement(By.id("id_groups_1")).click()
         await driver.findElement(By.css(".btn-primary")).click()
         while ((await driver.findElements(By.linkText("Edit"))).length == 0) {
             await new Promise(r => setTimeout(r, 2000));
