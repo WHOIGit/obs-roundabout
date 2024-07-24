@@ -162,9 +162,9 @@ var filename, filename_ext;
            while (!fs.existsSync(rdb_cruise)) // wait for file download
            {
                await new Promise(r => setTimeout(r, 2000));
-               console.log("Wait 2 seconds for File Download.");
+               console.log("Wait 3 minutes for File Download.");
            }
-           await new Promise(r => setTimeout(r, 20000));  //wait for file write to finish
+           await new Promise(r => setTimeout(r, 180000));  //wait for file write to finish
 
            // Compare Uploaded & Exported Cruise files
            // read a line from upload file and find it in exported buffer to verify Cruise was created properly
