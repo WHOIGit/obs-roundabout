@@ -255,9 +255,12 @@ class ImportConfigUpdate(LoginRequiredMixin, AjaxFormMixin, UpdateView):
 
     def get(self, request, *args, **kwargs):
         if ImportConfig.objects.exists():
-            self.object = self.get_object()
+            try:
+                self.object = ImportConfig.objects.get(id=1)
+            except:
+              self.object = ImportConfig.objects.create(id=1)  
         else:
-            self.object = ImportConfig.objects.create()
+            self.object = ImportConfig.objects.create(id=1)
         form_class = self.get_form_class()
         form = self.get_form(form_class)
         return self.render_to_response(
