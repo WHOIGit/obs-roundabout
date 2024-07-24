@@ -860,7 +860,7 @@ def validate_cal_files(csv_files,ext_files):
     try:
         import_config = ImportConfig.objects.get(id=1)
     except ImportConfig.DoesNotExist:
-        import_config = None
+        import_config = ImportConfig.objects.create(id=1)
     for cal_csv in csv_files:
         counter += 1
         cal_csv_filename = cal_csv.name[:-4]
