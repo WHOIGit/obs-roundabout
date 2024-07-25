@@ -164,45 +164,45 @@ var filename, filename_ext;
                await new Promise(r => setTimeout(r, 2000));
                console.log("Wait 2 seconds for File Download.");
            }
+           console.log("Wait 4 minutes for File Write.");
+           await new Promise(r => setTimeout(r, 240000));  //wait for file write to finish
 
            // Compare Uploaded & Exported Cruise files
            // read a line from upload file and find it in exported buffer to verify Cruise was created properly
            var upload = fs.readFileSync(filename, 'utf8');
-           //var exported = fs.readFileSync(rdb_cruise, 'utf8');
-           fs.readFile(rdb_cruise, 'utf8', (err, exported) => {
+           var exported = fs.readFileSync(rdb_cruise, 'utf8');
 
-               var uploaded_data = $.csv.toArrays(upload);
+           var uploaded_data = $.csv.toArrays(upload);
 
-              // Skip line
-               for (var i = 2, len = uploaded_data.length; i < len; i++) {
-                   var cruise_str = uploaded_data[i];
-      	           // Strip off any trailing blanks in cruise name imported data
-	           cruise_str[1] = cruise_str[1].toString().trim();
-	           // Remove extra dash in Timestamp
-	           cruise_str[2] = cruise_str[2].toString().replace('-T', 'T');
-	           cruise_str[3] = cruise_str[3].toString().replace('-T', 'T');
-                   // Imported EK20220415 is missing :00 in Timestamp
-                   if (cruise_str[2].split(":").length == 2)
-                   {
-                      cruise_str[2] = cruise_str[2] + ":00";
-                   }
-                   if (cruise_str[3].split(":").length == 2)
-                   {
-                      cruise_str[3] = cruise_str[3] + ":00";
-                   }
-                   // This is the only way to compare the double quotes in the notes field
-                   if (cruise_str[4].includes(",")) {
-                       if (!(exported.includes(cruise_str[0]) && exported.includes(cruise_str[1])
-                           && exported.includes(cruise_str[2]) && exported.includes(cruise_str[3])))
-                           console.log("Cruise Export Missing: " + cruise_str)
-                        if (!exported.includes(cruise_str[4]))
-                           console.log("Cruise Export Missing: " + cruise_str[4])
-                   }
-                   else if (!exported.includes(cruise_str)) {
-                       console.log("Cruise Export Missing: "+cruise_str)
-                   }
+           // Skip line
+           for (var i = 2, len = uploaded_data.length; i < len; i++) {
+               var cruise_str = uploaded_data[i];
+      	       // Strip off any trailing blanks in cruise name imported data
+	       cruise_str[1] = cruise_str[1].toString().trim();
+	       // Remove extra dash in Timestamp
+	       cruise_str[2] = cruise_str[2].toString().replace('-T', 'T');
+	       cruise_str[3] = cruise_str[3].toString().replace('-T', 'T');
+               // Imported EK20220415 is missing :00 in Timestamp
+               if (cruise_str[2].split(":").length == 2)
+               {
+                  cruise_str[2] = cruise_str[2] + ":00";
                }
-            })
+               if (cruise_str[3].split(":").length == 2)
+               {
+                  cruise_str[3] = cruise_str[3] + ":00";
+               }
+               // This is the only way to compare the double quotes in the notes field
+               if (cruise_str[4].includes(",")) {
+                    if (!(exported.includes(cruise_str[0]) && exported.includes(cruise_str[1])
+                       && exported.includes(cruise_str[2]) && exported.includes(cruise_str[3])))
+                       console.log("Cruise Export Missing: " + cruise_str)
+                    if (!exported.includes(cruise_str[4]))
+                       console.log("Cruise Export Missing: " + cruise_str[4])
+               }
+               else if (!exported.includes(cruise_str)) {
+                   console.log("Cruise Export Missing: "+cruise_str)
+               }
+           }
         }
 
         // Import Vessel CSV - CI Version
@@ -578,7 +578,7 @@ var filename, filename_ext;
                 }
                 j++;
             } 
-            await new Promise(r => setTimeout(r, 2000));
+            await new Promise(r => setTimeout(r, 1000));
             await driver.findElement(By.linkText("ADCPS-J")).click();
             await new Promise(r => setTimeout(r, 1000));
             while ((await driver.findElements(By.id("action"))).length == 0) {
