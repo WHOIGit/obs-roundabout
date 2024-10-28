@@ -83,6 +83,7 @@ var password;
         await driver.findElement(By.id("id_login")).sendKeys(user);
         await driver.findElement(By.id("id_password")).sendKeys(password);
         await driver.findElement(By.css(".primaryAction")).click();
+        await new Promise(r => setTimeout(r, 2000));
 
         // EXPORT CRUISE/VESSEL TEST - Tests Issue #174
 
@@ -121,14 +122,11 @@ var password;
         await driver.findElement(By.id("id_R2R")).sendKeys("Yes")
         await driver.findElement(By.id("id_notes")).sendKeys("Deep water vessel.")
         await driver.findElement(By.css(".btn-primary")).click()
+        await new Promise(r => setTimeout(r, 2000));
 
 	console.log("Add a Vessel.");
 
         // Add a Cruise
-        while ((await driver.findElements(By.linkText("Cruises"))).length == 0) {
-            await new Promise(r => setTimeout(r, 2000));
-            console.log("Wait 2 seconds for Cruises.");
-        }
         await driver.findElement(By.linkText("Cruises")).click()
         while ((await driver.findElements(By.id("action"))).length == 0) {
             await new Promise(r => setTimeout(r, 2000));
@@ -144,6 +142,7 @@ var password;
         await driver.findElement(By.id("id_CUID")).sendKeys("MAUI")
         await driver.findElement(By.id("id_friendly_name")).sendKeys("Sunset Cruise")
         await driver.findElement(By.id("id_vessel")).sendKeys("MP Maui Princess")
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.id("id_cruise_start_date")).sendKeys(Key.DELETE)
         await driver.findElement(By.id("id_cruise_start_date")).sendKeys("11/04/2020 00:00")
         await driver.findElement(By.id("id_cruise_stop_date")).sendKeys("1/03/2021 00:00")
@@ -151,7 +150,8 @@ var password;
         {
             const dropdown = await driver.findElement(By.id("id_location"))
             await dropdown.findElement(By.xpath("//option[. = ' Test']")).click()
-        }  
+        }
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.css(".controls > .btn")).click()
 	console.log("Add a Cruise.");
         await new Promise(r => setTimeout(r, 4000));
@@ -181,8 +181,8 @@ var password;
         var data;
 
         if (myArgs[1] == 'headless') {
-            var rdb_ves = process.cwd() + "/shiplist.csv";
-            var rdb_cru = process.cwd() + "/CruiseInformation.csv";
+            var rdb_ves = "/root/Downloads/shiplist.csv";
+            var rdb_cru = "/root/Downloads/CruiseInformation.csv";
         }
         else {
             const execSync = require('child_process').execSync;
@@ -260,6 +260,9 @@ var password;
 	}
 	if (!found) console.log("Export Cruise Fields Do Not Match.");
 
+        fs.unlinkSync(rdb_cru);
+        fs.unlinkSync(rdb_ves);
+        await new Promise(r => setTimeout(r, 2000));
 
         // Close browser window
         driver.quit();

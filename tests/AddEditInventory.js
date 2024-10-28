@@ -80,6 +80,7 @@ var password;
         await driver.findElement(By.id("id_login")).sendKeys(user);
         await driver.findElement(By.id("id_password")).sendKeys(password);
         await driver.findElement(By.css(".primaryAction")).click();
+        await new Promise(r => setTimeout(r, 2000));
 
         // ADD INVENTORY TEST
 
@@ -284,12 +285,7 @@ var password;
         }
         await driver.findElement(By.id("field-query_c_r0")).sendKeys("Test");
         await driver.findElement(By.id("searchform-submit-button")).click();
-
-        while ((await driver.findElements(By.css(".even a"))).length == 0)
-        {
-            await new Promise(r => setTimeout(r, 2000));
-            console.log("Wait 2 seconds for Search1.");
-        }
+        await new Promise(r => setTimeout(r, 2000));       
         await driver.findElement(By.css(".even a")).click();
 
         while ((await driver.findElements(By.id("action"))).length == 0) {
@@ -338,15 +334,11 @@ var password;
         await driver.findElement(By.id("field-query_c_r0")).sendKeys("Test");
         await driver.findElement(By.css("#qcard_c > .card-body")).click();
         await driver.findElement(By.id("searchform-submit-button")).click();
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.id("searchbar-query")).click(); //search within these results
         await driver.findElement(By.id("searchbar-query")).sendKeys("Coastal Mooring");
         await driver.findElement(By.css(".btn-outline-primary:nth-child(1)")).click();
-
-        while ((await driver.findElements(By.css(".even a"))).length == 0)
-        {
-            await new Promise(r => setTimeout(r, 2000));
-            console.log("Wait 2 seconds for Search3.");
-        }
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.css(".even a")).click();
 
         // Add subassembly item to valid parent
@@ -402,12 +394,7 @@ var password;
         await driver.findElement(By.id("field-query_c_r1")).sendKeys("Wifi");
         await driver.findElement(By.id("searchform-submit-button")).click();
 
-        //	await new Promise(r => setTimeout(r, 8000));  
-        while ((await driver.findElements(By.css(".even a"))).length == 0)
-        {
-            await new Promise(r => setTimeout(r, 2000));
-            console.log("Wait 2 seconds for Search5.");
-        }
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.css(".even a")).click();
 
         while ((await driver.findElements(By.id("action"))).length == 0) {
