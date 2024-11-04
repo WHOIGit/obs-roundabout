@@ -468,6 +468,7 @@ var password;
 	       console.log("Wait 2 seconds for Approved.");
 	    }
         await driver.findElement(By.partialLinkText("1232"));
+        await new Promise(r => setTimeout(r, 2000));
 
         //Approved Flag
         {

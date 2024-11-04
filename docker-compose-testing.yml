@@ -19,8 +19,6 @@
 # If not, see <http://www.gnu.org/licenses/>.
 #
 
-version: "3.7"
-
 volumes:
   local_postgres_data: {}
   local_postgres_data_backups: {}

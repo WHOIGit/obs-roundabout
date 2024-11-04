@@ -160,14 +160,16 @@ var password;
         await driver.findElement(By.id("id_login")).sendKeys("tech")
         await driver.findElement(By.id("id_password")).sendKeys("tech")
         await driver.findElement(By.css(".primaryAction")).click()
+        await new Promise(r => setTimeout(r, 2000));
 	    // Verify "Account Inactive"
         var bodyText = await driver.findElement(By.css('body')).getText();
         assert(bodyText.includes("Account Inactive"));
 
         await driver.findElement(By.id("log-in-link")).click()
-        await driver.findElement(By.id("id_login")).sendKeys("inv")
-        await driver.findElement(By.id("id_password")).sendKeys("inv")
-        await driver.findElement(By.css(".primaryAction")).click()
+        await driver.findElement(By.id("id_login")).sendKeys("inv");
+        await driver.findElement(By.id("id_password")).sendKeys("inv");
+        await driver.findElement(By.css(".primaryAction")).click();
+        await new Promise(r => setTimeout(r, 2000));
 	    // Verify "Account Inactive"
         bodyText = await driver.findElement(By.css('body')).getText();
         assert(bodyText.includes("Account Inactive"));
@@ -176,6 +178,7 @@ var password;
         await driver.findElement(By.id("id_login")).sendKeys("admin")
         await driver.findElement(By.id("id_password")).sendKeys("admin")
         await driver.findElement(By.css(".primaryAction")).click()
+        await new Promise(r => setTimeout(r, 2000));
 
 	    // Activate users and try to login
         await driver.findElement(By.linkText("Users")).click()
@@ -207,7 +210,8 @@ var password;
 	    // Modify My Info
         await driver.findElement(By.linkText("My Info")).click()
         await driver.findElement(By.id("id_name")).sendKeys("best technician")
-        await driver.findElement(By.css(".btn-primary")).click() 
+        await driver.findElement(By.css(".btn-primary")).click()
+        await new Promise(r => setTimeout(r, 2000));
 	    // Verify my info changed
         bodyText = await driver.findElement(By.css('body')).getText();
         assert(bodyText.includes("best technician"));
@@ -216,6 +220,7 @@ var password;
         await driver.findElement(By.linkText("E-Mail")).click()
         await driver.findElement(By.id("id_email")).sendKeys("tech@example.com")
         await driver.findElement(By.name("action_add")).click()
+        await new Promise(r => setTimeout(r, 2000));
 	    // Verify screen text contains tech@example.com
         bodyText = await driver.findElement(By.css('body')).getText();
         assert(bodyText.includes("tech@example.com"));
@@ -227,6 +232,7 @@ var password;
         await driver.findElement(By.id("id_password1")).sendKeys("tech1234")
         await driver.findElement(By.id("id_password2")).sendKeys("tech1234")
         await driver.findElement(By.name("action")).click()
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.linkText("Sign Out")).click()
         await driver.findElement(By.css(".btn-danger")).click()
 
