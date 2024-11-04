@@ -808,45 +808,63 @@ class ExportDeployments(ZipExport):
                 if att == "1":
                     val = 1  # versionNumber
                 elif att == "deployment.config_event('Nominal_Depth').config_value":
+                    # Step 1: Retrieve ConfigName, with check for None
                     config_name = ConfigName.objects.filter(
                         name="Nominal Depth",
                         part=depl_obj.inventory.part,
                         config_type="conf",
                     ).first()
-                    config_event = ConfigEvent.objects.filter(
-                        inventory=depl_obj.inventory, deployment=depl_obj.deployment
-                    ).first()
-                    config_val = ConfigValue.objects.filter(
-                        config_event=config_event, config_name=config_name
-                    ).first()
-                    val = config_val.config_value
-
+                    
+                    if config_name is None:
+                        # If ConfigName is missing, set a default/fallback value
+                        val = "N/A"
+                    else:
+                        # Step 2: Retrieve ConfigEvent, with check for None
+                        config_event = ConfigEvent.objects.filter(
+                            inventory=depl_obj.inventory, deployment=depl_obj.deployment
+                        ).first()
+                        
+                        if config_event is None:
+                            # If ConfigEvent is missing, set a default/fallback value
+                            val = "N/A"
+                        else:
+                            # Step 3: Retrieve ConfigValue, with check for None
+                            config_val = ConfigValue.objects.filter(
+                                config_event=config_event, config_name=config_name
+                            ).first()
+                            
+                            # If ConfigValue is found, use config_value; if not, use "N/A"
+                            val = config_val.config_value if config_val else "N/A"
                 else:
+                    # Fallback for other attributes
                     try:
                         val = attrgetter(att)(depl_obj)
                     except AttributeError:
                         val = None
 
+                # Additional formatting for specific types
                 if isinstance(val, dt.datetime):  # dates
                     val = val.replace(
                         tzinfo=None
-                    )  # remove timezone awareness such that
+                    )  # remove timezone awareness
                     val = val.isoformat(
                         timespec="seconds"
-                    )  # +00:00 doesn't appear in iso string
-                elif isinstance(val, float):  # lat,lon
+                    )  # format datetime as ISO string
+                elif isinstance(val, float):  # lat, lon
                     val = "{:.5f}".format(val)
                 elif att in ["cruise_deployed", "cruise_recovered"] and not val:
-                    # if CUID_deployed/recovered not recorded on InventoryDeployment, check parent deployment
+                    # If CUID_deployed/recovered not recorded on InventoryDeployment, check parent deployment
                     try:
                         val = attrgetter("deployment." + att)(depl_obj)
                     except AttributeError:
                         val = None
 
+                # Final fallback for None values
                 val = str(val) if val is not None else ""
 
                 row.append(val)
             return row
+
 
         objs = objs.prefetch_related("build__assembly_revision__assembly")
         assy_names = objs.values_list(
