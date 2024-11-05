@@ -816,7 +816,6 @@ var filename, filename_ext;
             await new Promise(r => setTimeout(r, 2000));
             
             bodyText = await driver.findElement(By.css('body')).getText();
-            console.log(bodyText);
             if (bodyText.includes("CP04OSSM-MFD35")) {
                 console.log("Vocab.csv bulk upload successful - reference designator found.");
             }
