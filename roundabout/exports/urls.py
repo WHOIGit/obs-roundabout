@@ -34,6 +34,8 @@ urlpatterns = [
     path('cruises/', view=views.ExportCruises.as_view(), name='cruises'),
     path('vessels/', view=views.ExportVessels.as_view(), name='vessels'),
     path('deployments/', view=views.ExportDeployments.as_view(), name='deployments'),
+    path('reference_designators/', view=views.ExportReferenceDesignators.as_view(), name='refdes'),
+    path('inventory/', view=views.ExportInventory.as_view(), name='inventory'),
     path('CI/', view=views.ExportCI.as_view(), name='CI'),
     path('obs_assemblybuilds/<int:pk>', view=views.ExportOBSAssemblyBuilds.as_view(), name='obs_assemblybuilds'),
     path('obs_allbuilds', view=views.ExportOBSBuildsAll.as_view(), name='obs_allbuilds'),
