@@ -675,9 +675,16 @@ class InventoryTableView(GenericSearchTableView):
                 ),
             ),
             dict(
-                value="assembly_part__reference_designator__refdes_name",
+                value="assembly_part__latest__assemblypart_referencedesignatorevents__reference_designator",
                 text="Reference Designator",
                 legal_lookup="STR_LOOKUP",
+                col_args=dict(
+                    render=lambda record: (
+                        record.assembly_part.assemblypart_referencedesignatorevents.first().reference_designator
+                        if record.assembly_part and hasattr(record.assembly_part, "assemblypart_referencedesignatorevents")
+                        else "None"
+                    )
+                )
             ),
             dict(value=None, text="--Part--", disabled=True),
             dict(
