@@ -617,6 +617,7 @@ class InventoryTableView(GenericSearchTableView):
         "inventory_calibrationevents",
         "inventory_deployments",
         "assembly_part__reference_designator",
+        "assembly_part__referencedesignatorevents"
     ]
     avail_udf = set()
     choice_fields = {"actions__latest__action_type": Action.ACTION_TYPES}
