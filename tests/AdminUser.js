@@ -89,6 +89,7 @@ var password;
 
 	    // Add Technician & Inventory Role Users
         await driver.findElement(By.linkText("Users")).click()
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.linkText("Add User")).click()
         await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.id("id_username")).sendKeys("tech")
@@ -101,6 +102,7 @@ var password;
         }
 
         await driver.findElement(By.linkText("Users")).click()
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.linkText("Add User")).click()
         await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.id("id_username")).sendKeys("inv")
