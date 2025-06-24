@@ -142,6 +142,7 @@ var password;
             console.log("Wait 2 seconds for Sign Out2.");
         }
         await driver.findElement(By.linkText("Sign Out")).click()
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.css(".btn-danger")).click()
         await driver.findElement(By.id("log-in-link")).click()
         console.log("Before id_login4.");
@@ -161,6 +162,7 @@ var password;
             console.log("Wait 2 seconds for Sign Out3.");
         }
         await driver.findElement(By.linkText("Sign Out")).click()
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.css(".btn-danger")).click()
 
 	    // Try to login, should fail
@@ -187,6 +189,7 @@ var password;
 
         await driver.findElement(By.id("log-in-link")).click()
         console.log("Before id_login7.");
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.id("id_login")).sendKeys("admin")
         await driver.findElement(By.id("id_password")).sendKeys("admin")
         await driver.findElement(By.css(".primaryAction")).click()
@@ -205,6 +208,7 @@ var password;
             console.log("Wait 2 seconds for Sign Out4.");
         }
         await driver.findElement(By.linkText("Sign Out")).click()
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.css(".btn-danger")).click()
 
         await driver.findElement(By.id("log-in-link")).click()
@@ -219,6 +223,7 @@ var password;
         }
 
         await driver.findElement(By.linkText("Sign Out")).click()
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.css(".btn-danger")).click()
         await driver.findElement(By.id("log-in-link")).click()
         console.log("Before id_login9.");
@@ -253,6 +258,7 @@ var password;
         await driver.findElement(By.name("action")).click()
         await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.linkText("Sign Out")).click()
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.css(".btn-danger")).click()
 
 	    // Log back in with new Password
