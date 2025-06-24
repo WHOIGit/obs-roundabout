@@ -142,7 +142,10 @@ var password;
             console.log("Wait 2 seconds for Sign Out2.");
         }
         await driver.findElement(By.linkText("Sign Out")).click()
-        await new Promise(r => setTimeout(r, 2000));
+        while ((await driver.findElements(By.css(".btn-danger"))).length == 0) {
+            await new Promise(r => setTimeout(r, 2000));
+            console.log("Wait 2 seconds for btn-danger.");
+        }
         await driver.findElement(By.css(".btn-danger")).click()
         await driver.findElement(By.id("log-in-link")).click()
         console.log("Before id_login4.");
