@@ -152,6 +152,10 @@ var password;
         await driver.findElement(By.linkText("Users")).click()
         await driver.findElement(By.linkText("tech")).click()
         await driver.findElement(By.linkText("Suspend User")).click()
+        while ((await driver.findElements(By.linkText("Sign Out"))).length == 0) {
+            await new Promise(r => setTimeout(r, 2000));
+            console.log("Wait 2 seconds for Sign Out3.");
+        }
         await driver.findElement(By.linkText("Sign Out")).click()
         await driver.findElement(By.css(".btn-danger")).click()
 
@@ -184,9 +188,14 @@ var password;
         await driver.findElement(By.linkText("Users")).click()
         await driver.findElement(By.linkText("inv")).click()
         await driver.findElement(By.linkText("Activate User")).click()
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.linkText("Users")).click()
         await driver.findElement(By.linkText("tech")).click()
         await driver.findElement(By.linkText("Activate User")).click()
+        while ((await driver.findElements(By.linkText("Sign Out"))).length == 0) {
+            await new Promise(r => setTimeout(r, 2000));
+            console.log("Wait 2 seconds for Sign Out4.");
+        }
         await driver.findElement(By.linkText("Sign Out")).click()
         await driver.findElement(By.css(".btn-danger")).click()
 
@@ -197,7 +206,7 @@ var password;
 	    // Wait for Sign Out menu option to verify login
         while ((await driver.findElements(By.linkText("Sign Out"))).length == 0) {
             await new Promise(r => setTimeout(r, 2000));
-            console.log("Wait 2 seconds for Sign Out3.");
+            console.log("Wait 2 seconds for Sign Out5.");
         }
 
         await driver.findElement(By.linkText("Sign Out")).click()
@@ -245,7 +254,7 @@ var password;
         // Wait for Sign Out menu option to verify login
         while ((await driver.findElements(By.linkText("Sign Out"))).length == 0) {
             await new Promise(r => setTimeout(r, 2000));
-            console.log("Wait 2 seconds for Sign Out4.");
+            console.log("Wait 2 seconds for Sign Out6.");
         }
 
         // Close browser window
