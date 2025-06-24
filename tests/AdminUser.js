@@ -242,6 +242,7 @@ var password;
 
 	    // Modify Email
         await driver.findElement(By.linkText("E-Mail")).click()
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.id("id_email")).sendKeys("tech@example.com")
         await driver.findElement(By.name("action_add")).click()
         await new Promise(r => setTimeout(r, 2000));
