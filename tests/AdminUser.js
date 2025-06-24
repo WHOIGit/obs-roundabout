@@ -169,7 +169,7 @@ var password;
         await driver.findElement(By.id("id_login")).sendKeys("tech")
         await driver.findElement(By.id("id_password")).sendKeys("tech")
         await driver.findElement(By.css(".primaryAction")).click()
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 4000));
 	    // Verify "Account Inactive"
         var bodyText = await driver.findElement(By.css('body')).getText();
         assert(bodyText.includes("Account Inactive"));
@@ -179,10 +179,11 @@ var password;
         await driver.findElement(By.id("id_login")).sendKeys("inv");
         await driver.findElement(By.id("id_password")).sendKeys("inv");
         await driver.findElement(By.css(".primaryAction")).click();
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 4000));
 	    // Verify "Account Inactive"
         bodyText = await driver.findElement(By.css('body')).getText();
         assert(bodyText.includes("Account Inactive"));
+        await new Promise(r => setTimeout(r, 2000));
 
         await driver.findElement(By.id("log-in-link")).click()
         console.log("Before id_login7.");
