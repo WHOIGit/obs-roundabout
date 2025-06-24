@@ -80,7 +80,7 @@ var password;
         }
         // LOGIN
         await driver.findElement(By.linkText("Sign In")).click();
-        console.log("Before id_login1.");
+        //console.log("Before id_login1.");
         await driver.findElement(By.id("id_login")).sendKeys(user);
         await driver.findElement(By.id("id_password")).sendKeys(password);
         await driver.findElement(By.css(".primaryAction")).click();
@@ -90,6 +90,7 @@ var password;
 	    // Add Technician & Inventory Role Users
         await driver.findElement(By.linkText("Users")).click()
         await driver.findElement(By.linkText("Add User")).click()
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.id("id_username")).sendKeys("tech")
         await driver.findElement(By.id("id_password")).sendKeys("tech")
         await driver.findElement(By.id("id_groups_0")).click()
@@ -101,6 +102,7 @@ var password;
 
         await driver.findElement(By.linkText("Users")).click()
         await driver.findElement(By.linkText("Add User")).click()
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.id("id_username")).sendKeys("inv")
         await driver.findElement(By.id("id_password")).sendKeys("inv")
         await driver.findElement(By.id("id_groups_1")).click()
@@ -118,7 +120,7 @@ var password;
             console.log("Wait 2 seconds for Login.");
         }
         await driver.findElement(By.id("log-in-link")).click()
-        console.log("Before id_login2.");
+        //console.log("Before id_login2.");
         await driver.findElement(By.id("id_login")).sendKeys("tech")
         await driver.findElement(By.id("id_password")).sendKeys("tech")
         await driver.findElement(By.css(".primaryAction")).click()
@@ -131,7 +133,7 @@ var password;
         await driver.findElement(By.linkText("Sign Out")).click()
         await driver.findElement(By.css(".btn-danger")).click()
         await driver.findElement(By.id("log-in-link")).click()
-        console.log("Before id_login3.");
+        //console.log("Before id_login3.");
         await driver.findElement(By.id("id_login")).sendKeys("inv")
         await driver.findElement(By.id("id_password")).sendKeys("inv")
         await driver.findElement(By.id("id_remember")).click()
@@ -148,7 +150,7 @@ var password;
         }
         await driver.findElement(By.css(".btn-danger")).click()
         await driver.findElement(By.id("log-in-link")).click()
-        console.log("Before id_login4.");
+        //console.log("Before id_login4.");
         await driver.findElement(By.id("id_login")).sendKeys("admin")
         await driver.findElement(By.id("id_password")).sendKeys("admin")
         await driver.findElement(By.css(".primaryAction")).click()
@@ -170,7 +172,7 @@ var password;
 
 	    // Try to login, should fail
         await driver.findElement(By.id("log-in-link")).click()
-        console.log("Before id_login5.");
+        //console.log("Before id_login5.");
         await driver.findElement(By.id("id_login")).sendKeys("tech")
         await driver.findElement(By.id("id_password")).sendKeys("tech")
         await driver.findElement(By.css(".primaryAction")).click()
@@ -180,7 +182,7 @@ var password;
         assert(bodyText.includes("Account Inactive"));
 
         await driver.findElement(By.id("log-in-link")).click()
-        console.log("Before id_login6.");
+        //console.log("Before id_login6.");
         while ((await driver.findElements(By.id("id_login"))).length == 0) {
             await new Promise(r => setTimeout(r, 2000));
             console.log("Wait 2 seconds for id_login6.");
@@ -195,7 +197,7 @@ var password;
         await new Promise(r => setTimeout(r, 2000));
 
         await driver.findElement(By.id("log-in-link")).click()
-        console.log("Before id_login7.");
+        //console.log("Before id_login7.");
         while ((await driver.findElements(By.id("id_login"))).length == 0) {
             await new Promise(r => setTimeout(r, 2000));
             console.log("Wait 2 seconds for id_login7.");
@@ -222,7 +224,7 @@ var password;
         await driver.findElement(By.css(".btn-danger")).click()
 
         await driver.findElement(By.id("log-in-link")).click()
-        console.log("Before id_login8.");
+        //console.log("Before id_login8.");
         await driver.findElement(By.id("id_login")).sendKeys("inv")
         await driver.findElement(By.id("id_password")).sendKeys("inv")
         await driver.findElement(By.css(".primaryAction")).click()
@@ -236,7 +238,7 @@ var password;
         await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.css(".btn-danger")).click()
         await driver.findElement(By.id("log-in-link")).click()
-        console.log("Before id_login9.");
+        //console.log("Before id_login9.");
         await driver.findElement(By.id("id_login")).sendKeys("tech")
         await driver.findElement(By.id("id_password")).sendKeys("tech")
         await driver.findElement(By.css(".primaryAction")).click()
@@ -274,7 +276,7 @@ var password;
 
 	    // Log back in with new Password
         await driver.findElement(By.id("log-in-link")).click()
-        console.log("Before id_login10.");
+        //console.log("Before id_login10.");
         await driver.findElement(By.id("id_login")).sendKeys("tech")
         await driver.findElement(By.id("id_password")).click()
         await driver.findElement(By.id("id_password")).sendKeys("tech1234")
