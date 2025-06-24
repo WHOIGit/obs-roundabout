@@ -178,6 +178,10 @@ var password;
 
         await driver.findElement(By.id("log-in-link")).click()
         console.log("Before id_login6.");
+        while ((await driver.findElements(By.id("id_login"))).length == 0) {
+            await new Promise(r => setTimeout(r, 2000));
+            console.log("Wait 2 seconds for id_login6.");
+        }
         await driver.findElement(By.id("id_login")).sendKeys("inv");
         await driver.findElement(By.id("id_password")).sendKeys("inv");
         await driver.findElement(By.css(".primaryAction")).click();
