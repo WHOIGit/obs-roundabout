@@ -92,10 +92,13 @@ var password;
         await driver.findElement(By.id("searchbar-query")).sendKeys("surface mooring");
         await driver.findElement(By.id("searchbar-modelselect")).sendKeys("Part Templates");
         await driver.findElement(By.css(".btn-outline-primary:nth-child(1)")).click();
-        while ((await driver.findElements(By.linkText("1232"))).length == 0) // 1.6
-        {
-            await new Promise(r => setTimeout(r, 2000));
-            console.log("Wait 2 seconds for Search.");
+        for (var j = 0; j < 5; j++) {
+            if ((await driver.findElements(By.linkText("1232"))).length == 0) {
+                await new Promise(r => setTimeout(r, 2000));
+                console.log("Wait 2 seconds for Search.");
+            }
+            else
+                break;
         }
         
         await driver.findElement(By.linkText("1232")).click();
@@ -156,10 +159,15 @@ var password;
         await driver.findElement(By.id("searchbar-query")).sendKeys("disk drive");
         await driver.findElement(By.id("searchbar-modelselect")).sendKeys("Part Templates");
         await driver.findElement(By.css(".btn-outline-primary:nth-child(1)")).click();
-        while ((await driver.findElements(By.partialLinkText("100"))).length == 0) {
-            await new Promise(r => setTimeout(r, 2000));
-            console.log("Wait 2 seconds for Search2.");
+        for (var j = 0; j < 5; j++) {
+            if ((await driver.findElements(By.partialLinkText("100"))).length == 0) {
+                await new Promise(r => setTimeout(r, 2000));
+                console.log("Wait 2 seconds for Search2.");
+            }
+            else
+                break;
         }
+        
         await driver.findElement(By.partialLinkText("100")).click();
         while ((await driver.findElements(By.id("action"))).length == 0) {
             await new Promise(r => setTimeout(r, 2000));
@@ -372,9 +380,13 @@ var password;
         await driver.findElement(By.id("searchbar-query")).sendKeys("wifi");
         await driver.findElement(By.id("searchbar-modelselect")).sendKeys("Inventory");
         await driver.findElement(By.css(".btn-outline-primary:nth-child(1)")).click();
-        while ((await driver.findElements(By.partialLinkText("3604"))).length == 0) {
-            await new Promise(r => setTimeout(r, 2000));
-            console.log("Wait 2 seconds for Search.");
+        for (var j = 0; j < 5; j++) {
+            if ((await driver.findElements(By.partialLinkText("3604"))).length == 0) {
+                await new Promise(r => setTimeout(r, 2000));
+                console.log("Wait 2 seconds for Search Inventory.");
+            }
+            else
+                break;
         }
         await driver.findElement(By.partialLinkText("3604")).click();
 
@@ -393,9 +405,13 @@ var password;
         await driver.findElement(By.id("searchbar-query")).sendKeys("wifi");
         await driver.findElement(By.id("searchbar-modelselect")).sendKeys("Part Templates");
         await driver.findElement(By.css(".btn-outline-primary:nth-child(1)")).click();
-        while ((await driver.findElements(By.partialLinkText("666"))).length == 0) {
-            await new Promise(r => setTimeout(r, 2000));
-            console.log("Wait 2 seconds for Search Part.");
+        for (var j = 0; j < 5; j++) {
+            if ((await driver.findElements(By.partialLinkText("666"))).length == 0) {
+                await new Promise(r => setTimeout(r, 2000));
+                console.log("Wait 2 seconds for Search Part.");
+            }
+            else
+                break;
         }
         await driver.findElement(By.partialLinkText("666")).click();
         while ((await driver.findElements(By.linkText("Calibrations"))).length == 0) {
