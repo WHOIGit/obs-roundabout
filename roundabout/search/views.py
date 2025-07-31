@@ -682,7 +682,7 @@ class InventoryTableView(GenericSearchTableView):
             ),
             dict(
                 value="detail",
-                text="Notes",
+                text="Flagged Notes",
                 legal_lookup="STR_LOOKUP",
             ),
             dict(value=None, text="--Part--", disabled=True),
