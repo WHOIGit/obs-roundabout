@@ -449,22 +449,24 @@ def _create_action_history(
         # Update InventoryDeployment record
         if isinstance(obj, Inventory):
             inventory_deployment = obj.inventory_deployments.get_active_deployment()
-            # Only update date/cruise on full Build deployment, not individual item
-            if deployment_type == Action.BUILD_DEPLOYMENT:
-                inventory_deployment.deployment_recovery_date = action_date
-                if deployment:
-                    inventory_deployment.cruise_recovered = deployment.cruise_recovered
-            inventory_deployment.deployment_retire_date = action_date
-            inventory_deployment.save()
-            action_record.inventory_deployment = inventory_deployment
+            if inventory_deployment:
+                # Only update date/cruise on full Build deployment, not individual item
+                if deployment_type == Action.BUILD_DEPLOYMENT:
+                    inventory_deployment.deployment_recovery_date = action_date
+                    if deployment:
+                        inventory_deployment.cruise_recovered = deployment.cruise_recovered
+                inventory_deployment.deployment_retire_date = action_date
+                inventory_deployment.save()
+                action_record.inventory_deployment = inventory_deployment
+                action_record.cruise = inventory_deployment.cruise_recovered
+                action_record.detail = "%s Cruise: %s" % (
+                    action_record.detail,
+                    inventory_deployment.cruise_recovered,
+                )
             action_record.build = obj.get_latest_build()
             action_record.detail = "Recovered from %s. %s" % (deployment, detail)
             action_record.created_at = action_date
-            action_record.cruise = inventory_deployment.cruise_recovered
-            action_record.detail = "%s Cruise: %s" % (
-                action_record.detail,
-                inventory_deployment.cruise_recovered,
-            )
+            
 
         action_record.save()
         # Run secondary Action records after completion
