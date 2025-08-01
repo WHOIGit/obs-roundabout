@@ -404,23 +404,28 @@ def _create_action_history(
 
         # Update InventoryDeployment record
         if isinstance(obj, Inventory):
-            # Create InventoryDeployment record
-            inventory_deployment = InventoryDeployment.objects.create(
-                deployment=deployment,
-                inventory=obj,
-                assembly_part=obj.assembly_part,
-                deployment_start_date=action_date,
-                deployment_to_field_date=action_date,
-                cruise_deployed=deployment.cruise_deployed,
-            )
 
-            action_record.inventory_deployment = inventory_deployment
-            action_record.created_at = action_date
-            action_record.cruise = inventory_deployment.cruise_deployed
-            action_record.detail = "%s Cruise: %s" % (
-                action_record.detail,
-                inventory_deployment.cruise_deployed,
-            )
+            # if the item's build is not already deployed, create a new inventorydeployment record
+            if hasattr(obj,'build'):
+                if obj.build.is_deployed == False:
+                    
+                    # Create InventoryDeployment record
+                    inventory_deployment = InventoryDeployment.objects.create(
+                        deployment=deployment,
+                        inventory=obj,
+                        assembly_part=obj.assembly_part,
+                        deployment_start_date=action_date,
+                        deployment_to_field_date=action_date,
+                        cruise_deployed=deployment.cruise_deployed,
+                    )
+
+                    action_record.inventory_deployment = inventory_deployment
+                    action_record.created_at = action_date
+                    action_record.cruise = inventory_deployment.cruise_deployed
+                    action_record.detail = "%s Cruise: %s" % (
+                        action_record.detail,
+                        inventory_deployment.cruise_deployed,
+                    )
         action_record.save()
 
     elif action_type == Action.DEPLOYMENTRECOVER:
