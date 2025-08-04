@@ -554,3 +554,49 @@ def _update_vessel_events():
             print("adding vessel event")
             new_vessel_event = VesselEvent.objects.create(vessel=vessel)
             new_vessel_event.save()
+
+
+def _fix_broken_inv_dep():
+    inv_broken_list = [
+    "120035-010A-20009",
+    "021031-010A-20012",
+    "310006-010A-20012",
+    "230007-010A-20017",
+    "120041-010A-20006",
+    "120037-010A-20009",
+    "021045-010A-20010",
+    "021044-010A-20010",
+    "210009-010A-20010",
+    "300018-010A-20013",
+    "300017-010A-20026",
+    "300017-010A-20014",
+    "013063-010A-20013",
+    "150026-010A-20012",
+    "120035-010A-20015",
+    "021031-010A-20014",
+    "310006-010A-20014",
+    "230007-010A-20016",
+    "120041-010A-20017",
+    "120037-010A-20026",
+    "021045-010A-20009",
+    "021044-010A-20009",
+    "210009-010A-20001",
+    "300018-010A-20015",
+    "300017-010A-20027",
+    "300017-010A-20013",
+    "013063-010A-20015",
+    "150026-010A-20014",
+    "150026-010A-20012",
+    "220002-010A-20016",
+    "220002-010A-20058",
+    "210006-010A-20004"
+    ]
+    filtered_inv = Inventory.objects.filter(serial_number__in=inv_broken_list)
+    for inv in filtered_inv:
+        active_inv_dep = inv.inventory_deployments.get_active_deployment()
+        if active_inv_dep:
+            active_inv_dep.delete()
+    for inv in filtered_inv:
+        active_inv_dep = inv.inventory_deployments.get_active_deployment()
+        if active_inv_dep:
+            active_inv_dep.delete()
