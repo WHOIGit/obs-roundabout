@@ -22,18 +22,19 @@
 from django import forms
 from django.forms.models import inlineformset_factory
 from django.utils import timezone
-from bootstrap_datepicker_plus import DatePickerInput, DateTimePickerInput
+from bootstrap_datepicker_plus.widgets import DatePickerInput, DateTimePickerInput
 from django.contrib.sites.models import Site
 from crispy_forms.helper import FormHelper
 from crispy_forms.layout import Layout, Fieldset, ButtonHolder, Submit, Div, Field
 from django_summernote.widgets import SummernoteInplaceWidget, SummernoteWidget
 
-from .models import Build, BuildAction, BuildSnapshot, PhotoNote
+from .models import Build, BuildAction, BuildSnapshot, PhotoNote, BuildHyperlink
 from roundabout.inventory.models import Deployment, DeploymentAction, Action
 from roundabout.locations.models import Location
 
 # Get the app label names from the core utility functions
 from roundabout.core.utils import set_app_labels
+from roundabout.calibrations.utils import reviewer_users
 
 labels = set_app_labels()
 
@@ -71,6 +72,11 @@ class BuildForm(forms.ModelForm):
         if self.instance.pk:
             del self.fields["assembly"]
             del self.fields["assembly_revision"]
+
+
+BuildHyperlinkFormset = forms.models.inlineformset_factory(
+    Build, BuildHyperlink, fields=("text", "url"), extra=1, can_delete=True
+)
 
 
 class BuildActionLocationChangeForm(forms.ModelForm):
@@ -255,6 +261,7 @@ class DeploymentForm(forms.ModelForm):
             "latitude",
             "longitude",
             "depth",
+            "user_draft",
         ]
 
         labels = {
@@ -264,14 +271,15 @@ class DeploymentForm(forms.ModelForm):
             "deployed_location": "Final %s Location"
             % (labels["label_deployments_app_singular"]),
             "cruise_deployed": "Cruise Deployed On",
+            "user_draft": "Reviewers",
         }
 
-        widgets = {
-            "build": forms.HiddenInput(),
-        }
+        widgets = {"build": forms.HiddenInput(), "user_draft": forms.SelectMultiple()}
 
     def __init__(self, *args, **kwargs):
         super(DeploymentForm, self).__init__(*args, **kwargs)
+        self.fields["user_draft"].queryset = reviewer_users()
+        self.fields["user_draft"].required = False
         if self.instance.pk:
             print(self.instance.current_status)
             if (
@@ -307,7 +315,7 @@ class DeploymentForm(forms.ModelForm):
 
         if deployment_burnin_date < deployment_start_date:
             raise forms.ValidationError(
-                "Deployment Cycle dates are invalid. Check that that dates are in correct order"
+                "Deployment Cycle dates are invalid. Check that dates are in correct order"
             )
         return deployment_burnin_date
 
@@ -319,7 +327,7 @@ class DeploymentForm(forms.ModelForm):
         if deployment_burnin_date:
             if deployment_to_field_date < deployment_burnin_date:
                 raise forms.ValidationError(
-                    "Deployment Cycle dates are invalid. Check that that dates are in correct order"
+                    "Deployment Cycle dates are invalid. Check that dates are in correct order"
                 )
         return deployment_to_field_date
 
@@ -333,7 +341,7 @@ class DeploymentForm(forms.ModelForm):
         if deployment_to_field_date:
             if deployment_recovery_date < deployment_to_field_date:
                 raise forms.ValidationError(
-                    "Deployment Cycle dates are invalid. Check that that dates are in correct order"
+                    "Deployment Cycle dates are invalid. Check that dates are in correct order"
                 )
         return deployment_recovery_date
 
@@ -347,7 +355,7 @@ class DeploymentForm(forms.ModelForm):
         if deployment_recovery_date:
             if deployment_retire_date < deployment_recovery_date:
                 raise forms.ValidationError(
-                    "Deployment Cycle dates are invalid. Check that that dates are in correct order"
+                    "Deployment Cycle dates are invalid. Check that dates are in correct order"
                 )
         return deployment_retire_date
 
@@ -375,6 +383,7 @@ class DeploymentStartForm(forms.ModelForm):
             "build",
             "deployed_location",
             "cruise_deployed",
+            "user_draft",
         ]
 
         labels = {
@@ -384,11 +393,17 @@ class DeploymentStartForm(forms.ModelForm):
             "deployed_location": "Final %s Location"
             % (labels["label_deployments_app_singular"]),
             "cruise_deployed": "Cruise Deployed On",
+            "user_draft": "Reviewers",
         }
 
         widgets = {
             "build": forms.HiddenInput(),
         }
+
+    def __init__(self, *args, **kwargs):
+        super(DeploymentStartForm, self).__init__(*args, **kwargs)
+        self.fields["user_draft"].queryset = reviewer_users()
+        self.fields["user_draft"].required = False
 
 
 class DeploymentActionBurninForm(forms.ModelForm):

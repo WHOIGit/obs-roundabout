@@ -22,23 +22,6 @@ var token;
     let chromeCapabilities = Capabilities.chrome();
     var firefoxOptions = new firefox.Options();
 
-    // Docker linux chrome will only run headless
-    if ((myArgs[1] == 'headless') && (myArgs.length != 0)) {
-
-        chromeCapabilities.set("goog:chromeOptions", {
-            args: [
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--headless",
-                "--log-level=3",
-                "--disable-gpu",
-                "--allow-file-access-from-files"  //not working - api CORS error
-            ]
-        });
-
-        firefoxOptions.addArguments("-headless");
-    }
-
 
     try {
 
@@ -46,8 +29,6 @@ var token;
         // API TEST
         // This test performs API Get Requests on the known data created by all the other Automated Tests.
         // The data returned from the Get Request is checked against the test data that was created.
-
-        //        $.csv = require('jquery-csv');
 
         // method and body defined, but headers not defined. had to define headers here
         const fetch = require('node-fetch');
@@ -58,16 +39,16 @@ var token;
         const { JSDOM } = jsdom;
         // Required to prevent Error: Cross origin null forbidden thrown by JSDOM
         const { window } = new JSDOM('', {
-            url: "http://localhost:8000",
-            referrer: "http://localhost:8000",
+            url: "http://0.0.0.0:8000",
+            referrer: "http://0.0.0.0:8000",
             contentType: "text/html",
             userAgent: "node.js",
             includeNodeLocations: true
         });
 
         var $ = require('jquery')(window);
-
-        const url = 'http://localhost:8000/api/v1/';
+        
+        const url = 'http://0.0.0.0:8000/api/v1/';
 
         // Login and get Api Token
         await $.post(url + 'api-token-auth/', { "username": "admin", "password": "admin" }, function (data) {
@@ -99,14 +80,14 @@ var token;
                     }
                 }
                 if (j != json.length) {
-                    console.log("API failed: 4 Part Templates not returned.");
+                    console.log("API failed: 4 Locations not returned.");
                     console.log(json);
                 }
 		else
 		    console.log("Get Locations.");
             }
             else {
-                console.log("API failed: 4 Part Templates not returned.");
+                console.log("API failed: 4 Locations not returned.");
                 console.log(json);
             }
         }
@@ -119,17 +100,19 @@ var token;
             headers: header,
         });
         json = await rsp.json();
-        if ((rsp.ok) && (json.length == 1)) {
-            if ((json[0].children.length != 2) || (json[0].name != 'Test')) { 
+        if (rsp.ok) {
+            for (var i = 0; i < json.length; i++) {
+              if ((json[i].children.length != 2) && (json[i].name == 'Test')) { 
                 console.log("API failed: 2 Test Child Locations not returned.");
                 console.log(json);
-            }
+              }
+          }
         }
         else
             console.log(rsp.statusText, "  ", json);
 
         // PARTS
-        // Get the Sewing, Wheel, Pin, and Disk Drive Part Templates
+        // Get the Coastal Mooring, Surface Buoy, Wifi, Disk Drive and ADCPS-J Part Templates
         // Test API filter by name
         rsp = await fetch(url + 'part-templates/parts/?fields=name', {
             method: 'GET',
@@ -137,28 +120,29 @@ var token;
         });
         json = await rsp.json();
         if (rsp.ok) {
-            if (json.length == 4) {
+            if (json.length == 5) {
                 var j = 0;
                 for (var i = 0; i < json.length; i++) {
-                    if ((json[i].name.includes("Disk Drive")) || (json[i].name.includes("Pin Template")) ||
-                        (json[i].name.includes("Sewing Template")) || (json[i].name.includes("Wheel Template"))) {
+                    if ((json[i].name.includes("Disk Drive")) || (json[i].name.includes("Wifi Template")) ||
+                        (json[i].name.includes("Coastal Mooring")) || (json[i].name.includes("Surface Buoy")) ||
+                        (json[i].name.includes("ADCPS-J"))) {
                         j++;
                     }
                 }
                 if (j != json.length) {
-                    console.log("API failed: 4 Part Templates not returned.");
+                    console.log("API failed: 5 Part Templates not returned.");
                     console.log(json);
                 }
             }
             else {
-                console.log("API failed: 4 Part Templates not returned.");
+                console.log("API failed: 5 Part Templates not returned.");
                 console.log(json);
             }
         }
         else
             console.log(rsp.statusText, "  ", json);
 
-        //Get Part Types - Sewing Machine, Computerized
+        //Get Part Types - Structural, Computerized
         // Test API Omit keyword, returning just the name
         rsp = await fetch(url + 'part-templates/part-types/?omit=id,url,parent,children,parts', {
             method: 'GET',
@@ -169,7 +153,7 @@ var token;
             if (json.length > 0) {
                 var j = 0;
                 for (var i = 0; i < json.length; i++) {
-                    if ((json[i].name.includes("Sewing Machine")) || (json[i].name.includes("Computerized"))) {
+                    if ((json[i].name.includes("Structural")) || (json[i].name.includes("Computerized"))) {
                         j++;
                     }
                 }
@@ -189,9 +173,9 @@ var token;
             console.log(rsp.statusText, "  ", json);
 
         // ASSEMBLIES
-        // Get the 3 Assembly Parts under the Singer Assembly
+        // Get the 3 Assembly Parts under the Salty Reef Assembly
         // Test API Expand key word 
-        rsp = await fetch(url + 'assembly-templates/assemblies/?name=Singer&expand=assembly_revisions&fields=assembly_revisions.assembly_parts', {
+        rsp = await fetch(url + 'assembly-templates/assemblies/?name=Salty Reef&expand=assembly_revisions&fields=assembly_revisions.assembly_parts', {
             method: 'GET',
             headers: header,
         });
@@ -309,7 +293,7 @@ var token;
             console.log(rsp.statusText, "  ", json);
 
         // CRUISES
-        // There are 10 pages of cruises, get the header link field and verify 10 pages returned
+        // There are 11 pages of cruises, get the header link field and verify 10 pages returned
         var link = ' ';
         rsp = await fetch(url + 'cruises', {
             method: 'GET',
@@ -323,7 +307,7 @@ var token;
                 }
             }        
 
-            if (link.includes("page=10")) {
+            if (link.includes("page=11")) {
                 // Get the last Cruise Page
                 rsp = await fetch(url + 'cruises/?page=10', {
                     method: 'GET',
@@ -332,7 +316,7 @@ var token;
                 json = await rsp.json();
                 if (rsp.ok) {
                     if (json.length == 0) {
-                        console.log("API failed: Cruise Page 10 data not returned.");
+                        console.log("API failed: Cruise Page 11 data not returned.");
                         console.log(json);
                     }
 		    else
@@ -343,7 +327,7 @@ var token;
                 }
             }
             else {
-                console.log("API failed: 10 Cruise Pages not returned.");
+                console.log("API failed: 11 Cruise Pages not returned.");
                 console.log(json);
             }
         }
@@ -394,8 +378,8 @@ var token;
         });
         json = await rsp.json();
         if (rsp.ok) {
-            if (json.length != 4) {
-                console.log("API failed: 4 Calibrations/Coefficents not returned.");
+            if (json.length != 6) {
+                console.log("API failed: 6 Calibrations/Coefficents not returned.");
                 console.log(json);
             }
 	    else

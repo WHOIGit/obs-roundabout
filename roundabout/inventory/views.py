@@ -44,6 +44,8 @@ from django.views.generic import (
 )
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 
+from roundabout.inventory.views_tests import _reset_all_tests
+
 from .models import (
     Inventory,
     Deployment,
@@ -54,7 +56,7 @@ from .models import (
     DeploymentSnapshot,
 )
 from .forms import *
-from .utils import _create_action_history
+from .utils import _create_action_history, logged_user_review_items
 from roundabout.locations.models import Location
 from roundabout.parts.models import Part, PartType, Revision
 from roundabout.admintools.models import Printer
@@ -79,12 +81,33 @@ node_type = "inventory"
 
 def load_inventory_navtree(request):
     node_id = request.GET.get("id")
+    ccc_review_id_list = logged_user_review_items(request.user, "inv")
+    comment_list = None
+    if request.user.mptt_comments.exists():
+        comment_list = [
+            mptt_comment.action.inventory.id
+            for mptt_comment in request.user.mptt_comments.all()
+            if not mptt_comment.is_leaf_node()
+        ]
+        comment_list = set(comment_list)
+    # For filtering navtree by Part Type
+    part_types = request.GET.getlist("part_types[]")
+    if part_types:
+        part_types = list(map(int, part_types))
 
     if node_id == "#" or not node_id:
         locations = Location.objects.prefetch_related("inventory__part__part_type")
 
         return render(
-            request, "inventory/ajax_inventory_navtree.html", {"locations": locations}
+            request,
+            "inventory/ajax_inventory_navtree.html",
+            {
+                "locations": locations,
+                "user": request.user,
+                "reviewer_list": ccc_review_id_list,
+                "comment_list": comment_list,
+                "part_types": part_types,
+            },
         )
     else:
         build_pk = node_id.split("_")[1]
@@ -101,22 +124,12 @@ def load_inventory_navtree(request):
                 "inventory_qs": build.inventory,
                 "location_pk": build.location_id,
                 "build_pk": build_pk,
+                "user": request.user,
+                "reviewer_list": ccc_review_id_list,
+                "comment_list": comment_list,
+                "part_types": part_types,
             },
         )
-
-
-# Function to filter navtree by Part Type
-def filter_inventory_navtree(request):
-    part_types = request.GET.getlist("part_types[]")
-    part_types = list(map(int, part_types))
-    locations = Location.objects.exclude(root_type="Retired").prefetch_related(
-        "inventory__part__part_type"
-    )
-    return render(
-        request,
-        "inventory/ajax_inventory_navtree.html",
-        {"locations": locations, "part_types": part_types},
-    )
 
 
 def make_tree_copy(root_part, new_location, deployment_snapshot, parent=None):
@@ -243,6 +256,7 @@ def print_code_zebraprinter(request, **kwargs):
 
 # AJAX Functions for Forms
 # ------------------------------------------------------------------------------
+
 
 # Function to load available Parent Inventory items based on Part Template
 def load_parents(request):
@@ -414,17 +428,21 @@ def load_new_serialnumber(request):
 # Function to search subassembly options by serial number, load object
 def load_subassemblies_by_serialnumber(request):
     serial_number = request.GET.get("serial_number").strip()
-    parent_id = request.GET.get("parent_id")
+    item_id = request.GET.get("item_id")
+    action = request.GET.get("action")
+    print("Action", action)
 
-    parent = Inventory.objects.get(id=parent_id)
+    try:
+        item = Inventory.objects.get(id=item_id)
+    except Exception as e:
+        print(e)
+        item = None
+
     inventory_items = Inventory.objects.filter(serial_number__icontains=serial_number)
     return render(
         request,
         "inventory/available_subassemblies.html",
-        {
-            "inventory_items": inventory_items,
-            "parent": parent,
-        },
+        {"inventory_items": inventory_items, "item": item, "action": action},
     )
 
 
@@ -517,28 +535,111 @@ class InventoryAjaxDetailView(LoginRequiredMixin, DetailView):
         else:
             custom_fields = None
 
-        if self.object.calibration_events.exists():
-            coeff_events = self.object.calibration_events.prefetch_related(
+        # Get only current Test Results for display
+        test_results = self.object.test_results.filter(is_current=True).exclude(
+            result=InventoryTestResult.UNKNOWN
+        )
+
+        part_has_cals = False
+        part_has_configs = False
+        part_has_consts = False
+        inv_has_conf_events = False
+        inv_has_const_events = False
+        user_rev_cal_events = False
+        user_rev_constdef_events = False
+        user_rev_const_events = False
+        user_rev_conf_events = False
+        user_rev_bulk_events = False
+        inv_has_bulk_event = False
+        cnst_events = self.object.inventory_configevents.filter(config_type="cnst")
+        conf_events = self.object.inventory_configevents.filter(config_type="conf")
+        user_cnst_events = self.request.user.reviewer_configevents.filter(
+            config_type="cnst"
+        )
+        user_conf_events = self.request.user.reviewer_configevents.filter(
+            config_type="conf"
+        )
+        user_rev_deployment_events = False
+
+        if self.object.inventory_calibrationevents.exists():
+            coeff_events = self.object.inventory_calibrationevents.prefetch_related(
                 "coefficient_value_sets__coefficient_values"
             )
         else:
             coeff_events = None
 
-        part_has_configs = False
-        part_has_consts = False
-        if self.object.part.config_name_events.exists():
+        if self.object.part.part_coefficientnameevents.exists():
             if (
-                self.object.part.config_name_events.first()
-                .config_names.filter(config_type="conf")
+                self.object.part.part_coefficientnameevents.first()
+                .coefficient_names.filter(deprecated=False)
+                .exists()
+            ):
+                part_has_cals = True
+
+        if self.object.part.part_confignameevents.exists():
+            if (
+                self.object.part.part_confignameevents.first()
+                .config_names.filter(config_type="conf", deprecated=False)
                 .exists()
             ):
                 part_has_configs = True
             if (
-                self.object.part.config_name_events.first()
-                .config_names.filter(config_type="cnst")
+                self.object.part.part_confignameevents.first()
+                .config_names.filter(config_type="cnst", deprecated=False)
                 .exists()
             ):
                 part_has_consts = True
+
+        if self.object.inventory_configevents.exists():
+            if self.object.inventory_configevents.filter(config_type="conf"):
+                inv_has_conf_events = True
+            if self.object.inventory_configevents.filter(config_type="cnst"):
+                inv_has_const_events = True
+
+        if self.object.inventory_calibrationevents.exists():
+            if any(
+                x in self.request.user.reviewer_calibrationevents.all()
+                for x in self.object.inventory_calibrationevents.all()
+            ):
+                user_rev_cal_events = True
+
+        if self.object.inventory_constdefaultevents.exists():
+            if any(
+                x in self.request.user.reviewer_constdefaultevents.all()
+                for x in self.object.inventory_constdefaultevents.all()
+            ):
+                user_rev_constdef_events = True
+
+        if cnst_events:
+            if any(x in user_cnst_events for x in cnst_events):
+                user_rev_const_events = True
+
+        if conf_events:
+            if any(x in user_conf_events for x in conf_events):
+                user_rev_conf_events = True
+
+        if self.object.bulk_upload_event:
+            inv_has_bulk_event = True
+            if (
+                self.object.bulk_upload_event
+                in self.request.user.reviewer_bulkuploadevents.all()
+            ):
+                user_rev_bulk_events = True
+        comment_list = None
+        if self.request.user.mptt_comments.exists():
+            comment_list = [
+                mptt_comment.action.id
+                for mptt_comment in self.request.user.mptt_comments.all()
+                if not mptt_comment.is_leaf_node()
+            ]
+            comment_list = set(comment_list)
+
+        if self.object.inventory_deployments.exists():
+            if any(
+                x in self.request.user.reviewer_deployments.all()
+                for x in self.object.inventory_deployments.all()
+            ):
+                user_rev_deployment_events = True
 
         # Get Inventory items by Root Locations
         inventory_location_data = []
@@ -557,13 +658,25 @@ class InventoryAjaxDetailView(LoginRequiredMixin, DetailView):
 
         context.update(
             {
+                "part_has_cals": part_has_cals,
                 "part_has_configs": part_has_configs,
                 "part_has_consts": part_has_consts,
+                "inv_has_conf_events": inv_has_conf_events,
+                "inv_has_const_events": inv_has_const_events,
+                "inv_has_bulk_event": inv_has_bulk_event,
+                "comment_list": comment_list,
                 "coeff_events": coeff_events,
                 "printers": printers,
                 "custom_fields": custom_fields,
                 "node_type": node_type,
                 "inventory_location_data": inventory_location_data,
+                "user_rev_cal_events": user_rev_cal_events,
+                "user_rev_constdef_events": user_rev_constdef_events,
+                "user_rev_const_events": user_rev_const_events,
+                "user_rev_conf_events": user_rev_conf_events,
+                "user_rev_bulk_events": user_rev_bulk_events,
+                "user_rev_deployment_events": user_rev_deployment_events,
+                "test_results": test_results,
             }
         )
         return context
@@ -617,8 +730,36 @@ class InventoryAjaxCreateBasicView(LoginRequiredMixin, AjaxFormMixin, CreateView
             initial["location"] = self.kwargs["current_location"]
         return initial
 
-    def form_valid(self, form):
+    def get(self, request, *args, **kwargs):
+        self.object = None
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        link_formset = InventoryHyperlinkFormset(instance=self.object)
+        return self.render_to_response(
+            self.get_context_data(form=form, link_formset=link_formset)
+        )
+
+    def post(self, request, *args, **kwargs):
+        self.object = None
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        link_formset = InventoryHyperlinkFormset(
+            self.request.POST, instance=self.object
+        )
+
+        if form.is_valid() and link_formset.is_valid():
+            return self.form_valid(form, link_formset)
+        return self.form_invalid(form, link_formset)
+
+    def form_valid(self, form, formset):
         self.object = form.save()
+
+        for link_form in formset:
+            link = link_form.save(commit=False)
+            if link.text and link.url:
+                link.parent = self.object
+                link.save()
+
         # Call the function to create an Action history chain this event
         _create_action_history(self.object, Action.ADD, self.request.user)
         # Check if this Part has Custom fields with global default values, create fields if needed
@@ -676,7 +817,7 @@ class InventoryAjaxCreateBasicView(LoginRequiredMixin, AjaxFormMixin, CreateView
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 "message": "Successfully submitted form data.",
@@ -688,6 +829,20 @@ class InventoryAjaxCreateBasicView(LoginRequiredMixin, AjaxFormMixin, CreateView
         else:
             return response
 
+    def form_invalid(self, form, formset):
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            if not form.is_valid():
+                # show form errors before formset errors
+                return JsonResponse(form.errors, status=400)
+            else:
+                # only show formset errors if there are no form errors
+                # because it is unclear how to combine form and formset errors in a way that doesnt break project.js:handleFormError()
+                return JsonResponse(formset.errors, status=400, safe=False)
+        else:
+            return self.render_to_response(
+                self.get_context_data(form=form, link_formset=link_formset)
+            )
+
 
 class InventoryAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, UpdateView):
     model = Inventory
@@ -695,8 +850,38 @@ class InventoryAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, UpdateView):
     context_object_name = "inventory_item"
     template_name = "inventory/ajax_inventory_form.html"
 
-    def form_valid(self, form):
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        link_formset = InventoryHyperlinkFormset(instance=self.object)
+        return self.render_to_response(
+            self.get_context_data(form=form, link_formset=link_formset)
+        )
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        link_formset = InventoryHyperlinkFormset(
+            self.request.POST, instance=self.object
+        )
+
+        if form.is_valid() and link_formset.is_valid():
+            return self.form_valid(form, link_formset)
+        return self.form_invalid(form, link_formset)
+
+    def form_valid(self, form, formset):
         self.object = form.save()
+
+        for link_form in formset:
+            link = link_form.save(commit=False)
+            if link.text and link.url:
+                if link_form["DELETE"].data:
+                    link.delete()
+                else:
+                    link.parent = self.object
+                    link.save()
 
         # Check is this Part has custom fields
         if self.object.part.user_defined_fields.exists():
@@ -778,7 +963,7 @@ class InventoryAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, UpdateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 "message": "Successfully submitted form data.",
@@ -789,6 +974,20 @@ class InventoryAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, UpdateView):
             return JsonResponse(data)
         else:
             return response
+
+    def form_invalid(self, form, formset):
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            if not form.is_valid():
+                # show form errors before formset errors
+                return JsonResponse(form.errors, status=400)
+            else:
+                # only show formset errors if there are no form errors
+                # because it is unclear how to combine form and formset errors in a way that doesnt break project.js:handleFormError()
+                return JsonResponse(formset.errors, status=400, safe=False)
+        else:
+            return self.render_to_response(
+                self.get_context_data(form=form, link_formset=formset)
+            )
 
     def get_success_url(self):
         return reverse("inventory:ajax_inventory_detail", args=(self.object.id,))
@@ -835,7 +1034,7 @@ class InventoryAjaxActionView(InventoryAjaxUpdateView):
 
         return context
 
-    def form_valid(self, form):
+    def form_valid(self, form, formset=None):
         action_type = self.kwargs["action_type"]
         detail = self.object.detail
         created_at = form.cleaned_data.get("date", timezone.now())
@@ -904,6 +1103,12 @@ class InventoryAjaxActionView(InventoryAjaxUpdateView):
             inventory_deployment.deployment_recovery_date = action_date
             inventory_deployment.save()
 
+            # Auto reset all inventory tests here on Deployment Recovery
+            _reset_all_tests(
+                self.object,
+                self.request.user,
+            )
+
             # Find Build it was removed from
             old_build = self.object.get_latest_build()
             if old_build:
@@ -930,6 +1135,11 @@ class InventoryAjaxActionView(InventoryAjaxUpdateView):
                 inventory_deployment.cruise_recovered = cruise
                 inventory_deployment.deployment_recovery_date = action_date
                 inventory_deployment.save()
+                # Auto reset all inventory tests here on Deployment Recovery
+                _reset_all_tests(
+                    item,
+                    self.request.user,
+                )
                 # Call the function to create an Action history chain for all child items
                 _create_action_history(
                     item, action_type, self.request.user, self.object, "", action_date
@@ -990,7 +1200,7 @@ class InventoryAjaxActionView(InventoryAjaxUpdateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 "message": "Successfully submitted form data.",
@@ -1041,7 +1251,7 @@ class ActionNoteAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 "message": "Successfully submitted form data.",
@@ -1119,7 +1329,7 @@ class ActionHistoryNoteAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, CreateV
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 "message": "Successfully submitted form data.",
@@ -1146,7 +1356,7 @@ class InventoryAjaxAddToBuildListView(LoginRequiredMixin, TemplateView):
         )
         inventory_item = Inventory.objects.get(id=self.kwargs["pk"])
         builds = Build.objects.all().order_by("location__name")
-
+        x = False
         if inventory_item.assembly_part:
             for build in builds:
                 for assembly_part in build.assembly_revision.assembly_parts.all():
@@ -1178,7 +1388,6 @@ class InventoryAjaxAddToBuildListView(LoginRequiredMixin, TemplateView):
             assembly_parts = (
                 AssemblyPart.objects.filter(part=inventory_item.part)
                 .filter(assembly_revision__builds__in=builds)
-                .select_related()
                 .distinct()
             )
 
@@ -1477,7 +1686,7 @@ class ActionDeployInventoryAjaxFormView(LoginRequiredMixin, AjaxFormMixin, FormV
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 "message": "Successfully submitted form data.",
@@ -1898,63 +2107,22 @@ class InventoryAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Delet
         self.object.delete()
         return JsonResponse(data)
 
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            "message": "Successfully submitted form data.",
+            "parent_id": self.object.parent_id,
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
 
 # Base Views
 
+
 # View to get direct link to an Inventory item
-class InventoryDetailView(LoginRequiredMixin, DetailView):
-    model = Inventory
+class InventoryDetailView(InventoryAjaxDetailView):
     template_name = "inventory/inventory_detail.html"
-    context_object_name = "inventory_item"
-    queryset = (
-        Inventory.objects.prefetch_related("actions__user")
-        .prefetch_related("actions__location")
-        .prefetch_related("actions__photos")
-        .prefetch_related("photos")
-        .prefetch_related("inventory_deployments")
-        .select_related(
-            "location", "parent", "revision__part", "build", "part", "assembly_part"
-        )
-    )
-
-    def get_context_data(self, **kwargs):
-        context = super(InventoryDetailView, self).get_context_data(**kwargs)
-        # Add Parts list to context to build navtree filter
-        part_types = PartType.objects.all()
-        # Get Printers to display in print dropdown
-        printers = Printer.objects.all()
-
-        # Get this item's custom fields with most recent Values
-        if self.object.fieldvalues.exists():
-            custom_fields = self.object.fieldvalues.filter(is_current=True)
-        else:
-            custom_fields = None
-
-        # Get Inventory items by Root Locations
-        inventory_location_data = []
-        root_locations = Location.objects.root_nodes().exclude(root_type="Trash")
-        for root in root_locations:
-            locations_list = root.get_descendants(include_self=True).values_list(
-                "id", flat=True
-            )
-            items = self.object.part.inventory.filter(location__in=locations_list)
-            if items:
-                data = {
-                    "location_root": root,
-                    "inventory_items": items,
-                }
-                inventory_location_data.append(data)
-
-        context.update(
-            {
-                "part_types": part_types,
-                "printers": printers,
-                "custom_fields": custom_fields,
-                "node_type": node_type,
-                "inventory_location_data": inventory_location_data,
-            }
-        )
-        return context
 
     def post(self, request, *args, **kwargs):
         self.object = self.get_object()
@@ -2043,7 +2211,7 @@ class InventoryDeploymentAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, Updat
 
             action.save()
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 "message": "Successfully submitted form data.",
                 "object_id": self.object.inventory.id,
@@ -2100,7 +2268,7 @@ class DeploymentAjaxSnapshotCreateView(LoginRequiredMixin, AjaxFormMixin, Create
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 "message": "Successfully submitted form data.",
@@ -2122,6 +2290,15 @@ class DeploymentSnapshotAjaxDeleteView(DeleteView):
     template_name = "inventory/ajax_deployment_confirm_delete.html"
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            "message": "Successfully submitted form data.",
+            "parent_id": self.object.location_id,
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
         self.object = self.get_object()
         data = {
             "message": "Successfully submitted form data.",

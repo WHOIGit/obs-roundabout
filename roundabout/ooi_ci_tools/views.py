@@ -25,224 +25,34 @@ import re
 from decimal import Decimal
 
 from dateutil import parser
-from django.contrib.auth.mixins import LoginRequiredMixin
+from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.core.cache import cache
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse, HttpResponseRedirect
 from django.shortcuts import render, redirect
-from django.urls import reverse
+from django.urls import reverse, reverse_lazy
+from django.utils.timezone import make_aware
 from django.views.generic import TemplateView, FormView
+from common.util.mixins import AjaxFormMixin
+from django.views.generic import CreateView, UpdateView, DeleteView
 
 from roundabout.cruises.models import Cruise, Vessel
 from roundabout.assemblies.models import Assembly
-from .forms import ImportDeploymentsForm, ImportVesselsForm, ImportCruisesForm, ImportCalibrationForm
+from roundabout.configs_constants.models import ConfigDefault, ConfigEvent, ConfigName, ConfigValue
+from roundabout.builds.models import Build
+from roundabout.locations.models import Location
+from roundabout.inventory.models import Inventory, Action, Deployment, InventoryDeployment
+from roundabout.inventory.utils import _create_action_history
+from roundabout.calibrations.utils import handle_reviewers, user_ccc_reviews
+from roundabout.calibrations.tasks import check_events
+from .forms import *
 from .models import *
-from .tasks import parse_cal_files, parse_cruise_files, parse_vessel_files, parse_deployment_files
+from .tasks import *
+# Get the app label names from the core utility functions
+from roundabout.core.utils import set_app_labels
+labels = set_app_labels()
 
-
-# Github CSV file importer for Vessels
-class ImportVesselsUploadView(LoginRequiredMixin, FormView):
-    form_class = ImportVesselsForm
-    template_name = 'ooi_ci_tools/import_vessels_upload_form.html'
-
-    def form_valid(self, form):
-        csv_file = self.request.FILES['vessels_csv']
-        # Set up the Django file object for CSV DictReader
-        csv_file.seek(0)
-        reader = csv.DictReader(io.StringIO(csv_file.read().decode('utf-8')))
-        # Get the column headers to save with parent TempImport object
-        headers = reader.fieldnames
-        # Set up data lists for returning results
-        vessels_created = []
-        vessels_updated = []
-
-        for row in reader:
-            vessel_name = row['Vessel Name']
-            MMSI_number = None
-            IMO_number = None
-            length = None
-            max_speed = None
-            max_draft = None
-            active = re.sub(r'[()]', '', row['Active'])
-            R2R = row['R2R']
-
-            if row['MMSI#']:
-                MMSI_number = int(re.sub('[^0-9]','', row['MMSI#']))
-
-            if row['IMO#']:
-                IMO_number = int(re.sub('[^0-9]','', row['IMO#']))
-
-            if row['Length (m)']:
-                length = Decimal(row['Length (m)'])
-
-            if row['Max Speed (m/s)']:
-                max_speed = Decimal(row['Max Speed (m/s)'])
-
-            if row['Max Draft (m)']:
-                max_draft = Decimal(row['Max Draft (m)'])
-
-            if active:
-                if active == 'Y':
-                    active = True
-                else:
-                    active = False
-            if R2R:
-                if R2R == 'Y':
-                    R2R = True
-                else:
-                    R2R = False
-
-            # update or create Vessel object based on vessel_name field
-            vessel_obj, created = Vessel.objects.update_or_create(
-                vessel_name = vessel_name,
-                defaults = {
-                    'prefix': row['Prefix'],
-                    'vessel_designation': row['Vessel Designation'],
-                    'ICES_code': row['ICES Code'],
-                    'operator': row['Operator'],
-                    'call_sign': row['Call Sign'],
-                    'MMSI_number': MMSI_number,
-                    'IMO_number': IMO_number,
-                    'length': length,
-                    'max_speed': max_speed,
-                    'max_draft': max_draft,
-                    'designation': row['Designation'],
-                    'active': active,
-                    'R2R': R2R,
-                },
-            )
-
-            if created:
-                vessels_created.append(vessel_obj)
-            else:
-                vessels_updated.append(vessel_obj)
-
-        return super(ImportVesselsUploadView, self).form_valid(form)
-
-    def get_success_url(self):
-        return reverse('ooi_ci_tools:import_upload_success', )
-
-
-# Github CSV file importer for Cruises
-# If no matching Vessel in RDB based on vessel_name, one will be created
-class ImportCruisesUploadView(LoginRequiredMixin, FormView):
-    form_class = ImportCruisesForm
-    template_name = 'ooi_ci_tools/import_cruises_upload_form.html'
-
-    def form_valid(self, form):
-        csv_file = self.request.FILES['cruises_csv']
-        # Set up the Django file object for CSV DictReader
-        csv_file.seek(0)
-        reader = csv.DictReader(io.StringIO(csv_file.read().decode('utf-8')))
-        # Get the column headers to save with parent TempImport object
-        headers = reader.fieldnames
-        # Set up data lists for returning results
-        cruises_created = []
-        cruises_updated = []
-
-        for row in reader:
-            cuid = row['CUID']
-            cruise_start_date = parser.parse(row['cruiseStartDateTime'])
-            cruise_stop_date = parser.parse(row['cruiseStopDateTime'])
-            vessel_obj = None
-            # parse out the vessel name to match its formatting from Vessel CSV
-            vessel_name_csv = row['ShipName'].strip()
-            if vessel_name_csv == 'N/A':
-                vessel_name_csv = None
-
-            if vessel_name_csv:
-                vessels = Vessel.objects.all()
-                for vessel in vessels:
-                    if vessel.full_vessel_name == vessel_name_csv:
-                        vessel_obj = vessel
-                        break
-                # Create new Vessel obj if missing
-                if not vessel_obj:
-                    vessel_obj = Vessel.objects.create(vessel_name = vessel_name_csv)
-
-            # update or create Cruise object based on CUID field
-            cruise_obj, created = Cruise.objects.update_or_create(
-                CUID = cuid,
-                defaults = {
-                    'notes': row['notes'],
-                    'cruise_start_date': cruise_start_date,
-                    'cruise_stop_date': cruise_stop_date,
-                    'vessel': vessel_obj,
-                },
-            )
-
-            if created:
-                cruises_created.append(cruise_obj)
-            else:
-                cruises_updated.append(cruise_obj)
-
-        return super(ImportCruisesUploadView, self).form_valid(form)
-
-    def get_success_url(self):
-        return reverse('ooi_ci_tools:import_upload_success', )
-
-
-# Github CSV file importer for Deployments
-# Ths will create a new Asembly Revision and Build for each Deployment
-class ImportDeploymentsUploadView(LoginRequiredMixin, FormView):
-    form_class = ImportDeploymentsForm
-    template_name = 'ooi_ci_tools/import_deployments_upload_form.html'
-
-    def form_valid(self, form):
-        csv_files = self.request.FILES.getlist('deployments_csv')
-        # Set up the Django file object for CSV DictReader
-        for csv_file in csv_files:
-            print(csv_file)
-            csv_file.seek(0)
-            reader = csv.DictReader(io.StringIO(csv_file.read().decode('utf-8')))
-            headers = reader.fieldnames
-            deployments = []
-            for row in reader:
-                if not any(dict['mooring.uid'] == row['mooring.uid'] for dict in deployments):
-                    # get Assembly number from RefDes as that seems to be most consistent across CSVs
-                    ref_des = row['Reference Designator']
-                    assembly = ref_des.split('-')[0]
-                    # build data dict
-                    mooring_uid_dict = {'mooring.uid': row['mooring.uid'], 'assembly': assembly, 'rows': []}
-                    deployments.append(mooring_uid_dict)
-
-                deployment = next((deployment for deployment in deployments if deployment['mooring.uid'] == row['mooring.uid']), False)
-                deployment['rows'].append(row)
-
-            print(deployments)
-            for deployment in deployments:
-                # get the Assembly template for this Build
-                assembly_qs = Assembly.objects.filter(assembly_number=deployment['assembly'])
-                if assembly_qs:
-                    if assembly_qs.count() == 1:
-                        assembly = assembly_qs[0]
-                        print(assembly)
-                        print(deployment['mooring.uid'])
-                    else:
-                        raise ValueError("Too many results")
-                else:
-                    raise ValueError("No results")
-
-                for row in deployments[0]['rows']:
-                    pass
-                    #print(row['sensor.uid'])
-
-        return super(ImportDeploymentsUploadView, self).form_valid(form)
-
-    def get_success_url(self):
-        return reverse('ooi_ci_tools:import_upload_success', )
-
-
-class ImportUploadSuccessView(TemplateView):
-    template_name = "ooi_ci_tools/import_upload_success.html"
-
-
-
+# Obtain file processing percent total
 def upload_status(request):
-    # import_task = cache.get('import_task')
-    # if import_task is None:
-    #     return JsonResponse({ 'state': 'PENDING' })
-    # async_result = AsyncResult(import_task)
-    # info = getattr(async_result, 'info', '');
     result = cache.get('validation_progress')
     cache.delete('validation_progress')
     return JsonResponse({
@@ -250,23 +60,38 @@ def upload_status(request):
     })
 
 # Deployment CSV Importer
-def import_deployments(csv_files):
+def import_deployments(csv_files, user_draft):
     cache.set('dep_files',csv_files, timeout=None)
+    cache.set('user_draft_deploy', user_draft, timeout=None)
     job = parse_deployment_files.delay()
 
 
 # Cruise CSV Importer
-def import_cruises(cruises_files):
+def import_cruises(cruises_files, user_draft):
     cache.set('cruises_files', cruises_files, timeout=None)
+    cache.set('user_draft_cruises', user_draft, timeout=None)
     job = parse_cruise_files.delay()
 
 # Vessel CSV Importer
-def import_vessels(vessels_files):
+def import_vessels(vessels_files, user_draft):
     cache.set('vessels_files', vessels_files, timeout=None)
+    cache.set('user_draft_vessels', user_draft, timeout=None)
     job = parse_vessel_files.delay()
 
+# Reference Designator CSV Importer
+def import_refdes(refdes_files, user_draft):
+    cache.set('refdes_files', refdes_files, timeout=None)
+    cache.set('user_draft_refdes', user_draft, timeout=None)
+    job = parse_refdes_files.delay()
+
+# Bulk Upload CSV Importer
+def import_bulk(bulk_files, user_draft):
+    cache.set('bulk_files', bulk_files, timeout=None)
+    cache.set('user_draft_bulk', user_draft, timeout=None)
+    job = parse_bulk_files.delay()
+
 # Calibration CSV Importer
-def import_calibrations(cal_files, user, user_draft):
+def import_calibrations(cal_files, user_draft):
     csv_files = []
     ext_files = []
     for file in cal_files:
@@ -275,7 +100,6 @@ def import_calibrations(cal_files, user, user_draft):
             ext_files.append(file)
         if ext == 'csv':
             csv_files.append(file)
-    cache.set('user', user, timeout=None)
     cache.set('user_draft', user_draft, timeout=None)
     cache.set('ext_files', ext_files, timeout=None)
     cache.set('csv_files', csv_files, timeout=None)
@@ -286,36 +110,426 @@ def import_calibrations(cal_files, user, user_draft):
 # Activates parsing tasks based on selected files
 def import_csv(request):
     confirm = ""
+    extra_message = ''
+    if not ImportConfig.objects.exists():
+        ImportConfig.objects.create()
     if request.method == "POST":
         cal_form = ImportCalibrationForm(request.POST, request.FILES)
         dep_form = ImportDeploymentsForm(request.POST, request.FILES)
         cruises_form = ImportCruisesForm(request.POST, request.FILES)
         vessels_form = ImportVesselsForm(request.POST, request.FILES)
+        refdes_form = ImportReferenceDesignatorForm(request.POST, request.FILES)
+        bulk_form = ImportBulkUploadForm(request.POST, request.FILES)
         cal_files = request.FILES.getlist('calibration_csv')
         dep_files = request.FILES.getlist('deployments_csv')
         cruises_file = request.FILES.getlist('cruises_csv')
         vessels_file = request.FILES.getlist('vessels_csv')
+        refdes_file = request.FILES.getlist('refdes_csv')
+        bulk_file = request.FILES.getlist('bulk_csv')
+        cache.set('user', request.user, timeout=None)
         if cal_form.is_valid() and len(cal_files) >= 1:
-            import_calibrations(cal_files, request.user, cal_form.cleaned_data['user_draft'])
+            import_calibrations(cal_files, cal_form.cleaned_data['user_draft'])
             confirm = "True"
         if dep_form.is_valid() and len(dep_files) >= 1:
-            import_deployments(dep_files)
+            import_deployments(dep_files, dep_form.cleaned_data['user_draft'])
             confirm = "True"
         if cruises_form.is_valid() and len(cruises_file) >= 1:
-            import_cruises(cruises_file)
+            import_cruises(cruises_file, cruises_form.cleaned_data['user_draft'])
             confirm = "True"
         if vessels_form.is_valid() and len(vessels_file) >= 1:
-            import_vessels(vessels_file)
+            import_vessels(vessels_file, vessels_form.cleaned_data['user_draft'])
             confirm = "True"
+        if refdes_form.is_valid() and len(refdes_file) >= 1:
+            import_refdes(refdes_file, refdes_form.cleaned_data['user_draft'])
+            confirm = "True"
+        if bulk_form.is_valid() and len(bulk_file) >= 1:
+            import_bulk(bulk_file, bulk_form.cleaned_data['user_draft'])
+            confirm = "True"
+            extra_message = "Note: Bulk Vocab Files are displayed for Parts with matching Manufacturer/Model Field Values"
     else:
         cal_form = ImportCalibrationForm()
         dep_form = ImportDeploymentsForm()
         cruises_form = ImportCruisesForm()
         vessels_form = ImportVesselsForm()
+        refdes_form = ImportReferenceDesignatorForm()
+        bulk_form = ImportBulkUploadForm()
     return render(request, 'ooi_ci_tools/import_tool.html', {
         "form": cal_form,
         'dep_form': dep_form,
         'cruises_form': cruises_form,
         'vessels_form': vessels_form,
-        'confirm': confirm
+        'refdes_form': refdes_form,
+        'bulk_form': bulk_form,
+        'confirm': confirm,
+        'extra_message': extra_message
     })
+
+
+# Action-Comment View
+def action_comment(request, pk):
+    action = Action.objects.get(id=pk)
+    if request.method == "POST":
+        comment_form = CommentForm(request.POST)
+        if comment_form.is_valid():
+            comment_form.instance.action = action
+            comment_form.instance.user = request.user
+            comment_form.instance.detail = comment_form.cleaned_data['detail']
+            comment_form.save()
+    else:
+        comment_form = CommentForm()
+        comment_form.instance.action = action
+        comment_form.instance.user = request.user
+    return render(request, 'ooi_ci_tools/action_comment.html', {
+        "comment_form": comment_form,
+        "action_object": action
+    })
+
+# Sub-comment create view
+def sub_comment(request, pk, crud=None):
+    comment= MPTTComment.objects.get(id=pk)
+    if request.method == "POST":
+        if crud == 'add':
+            comment_form = CommentForm(request.POST)
+        else:
+            comment_form = CommentForm(request.POST, instance=comment)
+        if comment_form.is_valid():
+            if crud == 'add':
+                comment_form.instance.parent = comment
+                comment_form.instance.action = comment.action
+                comment_form.instance.user = request.user
+                comment_form.instance.detail = comment_form.cleaned_data['detail']
+            else:
+                comment_form.instance.detail = comment_form.cleaned_data['detail']
+            comment_form.save()
+    else:
+        if crud == 'add':
+            comment_form = CommentForm()
+        else:
+            comment_form = CommentForm(instance=comment)
+    return render(request, 'ooi_ci_tools/comment_comment.html', {
+        "comment_form": comment_form,
+        "parent_comment": comment
+    })
+
+# Comment delete view
+class CommentDelete(LoginRequiredMixin, DeleteView):
+    model = MPTTComment
+    context_object_name='comment_obj'
+    template_name = 'ooi_ci_tools/comment_delete.html'
+    permission_required = 'ooi_ci_tools.add_comments'
+    redirect_field_name = 'home'
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.id,
+            'parent_type': 'comment',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.id,
+            'parent_type': 'comment',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def get_success_url(self):
+        return reverse_lazy('inventory:ajax_inventory_detail', args=(self.object.action.inventory.id, ))
+
+
+
+# Handles import configurations of Calibration, Deployment, Cruises, and Vessels CSVs
+class ImportConfigUpdate(LoginRequiredMixin, AjaxFormMixin, UpdateView):
+    model = ImportConfig
+    form_class = ImportConfigForm
+    context_object_name = 'import_config'
+    template_name='ooi_ci_tools/import_config.html'
+
+    def get(self, request, *args, **kwargs):
+        if ImportConfig.objects.exists():
+            try:
+                self.object = ImportConfig.objects.get(id=1)
+            except:
+              self.object = ImportConfig.objects.create(id=1)  
+        else:
+            self.object = ImportConfig.objects.create(id=1)
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        return self.render_to_response(
+            self.get_context_data(
+                form=form,
+            )
+        )
+
+    def get_success_url(self):
+        return reverse('ooi_ci_tools:import_csv')
+
+
+
+# Handles Bulk Upload file edits for Inventory items
+class InvBulkUploadEventUpdate(LoginRequiredMixin, AjaxFormMixin, UpdateView):
+    model = BulkUploadEvent
+    form_class = BulkUploadEventForm
+    context_object_name = 'event_template'
+    template_name='ooi_ci_tools/bulkupload_edit.html'
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        inv_id = self.kwargs['inv_id']
+        file_name = self.kwargs['file']
+        bulk_file = BulkFile.objects.get(file_name = file_name)
+        file_records = BulkAssetRecord.objects.filter(bulk_file = bulk_file)
+        bulk_file_form = EventAssetFileFormset(
+            instance=self.object,
+            queryset=file_records
+        )
+        return self.render_to_response(
+            self.get_context_data(
+                form=form,
+                bulk_file_form=bulk_file_form,
+                file_name=file_name,
+                inv_id=inv_id
+            )
+        )
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        bulk_file_form = EventAssetFileFormset(
+            self.request.POST,
+            instance=self.object
+        )
+        if (form.is_valid() and bulk_file_form.is_valid()):
+            return self.form_valid(form, bulk_file_form)
+        return self.form_invalid(form, bulk_file_form)
+
+    def form_valid(self, form, bulk_file_form):
+        file_name = self.kwargs['file']
+        form.instance.approved = False
+        form.save()
+        handle_reviewers(form.instance.user_draft, form.instance.user_approver, form.cleaned_data['user_draft'])
+        self.object = form.save()
+        bulk_file_form.instance = self.object
+        bulk_file_form.save()
+        _create_action_history(self.object, Action.UPDATE, self.request.user, filename = file_name)
+        job = check_events.delay()
+        response = HttpResponseRedirect(self.get_success_url())
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            data = {
+                'message': "Successfully submitted form data.",
+                'object_id': self.object.id,
+                'object_type': self.object.get_object_type(),
+                'detail_path': self.get_success_url(),
+            }
+            return JsonResponse(data)
+        else:
+            return response
+
+
+    def form_invalid(self, form, bulk_file_form):
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            if form.errors:
+                data = form.errors
+                return JsonResponse(
+                    data,
+                    status=400,
+                    safe=False
+                )
+            if bulk_file_form.errors:
+                data = bulk_file_form.errors
+                return JsonResponse(
+                    data,
+                    status=400,
+                    safe=False
+                )
+            
+        else:
+            return self.render_to_response(
+                self.get_context_data(
+                    form=form,
+                    bulk_file_form=bulk_file_form,
+                    form_errors=form_errors
+                )
+            )
+
+    def get_success_url(self):
+        inv_id = self.kwargs['inv_id']
+        return reverse('inventory:ajax_inventory_detail', args=(inv_id, ))
+
+
+
+# Handles Bulk Upload file edits for Part items
+class PartBulkUploadEventUpdate(LoginRequiredMixin, AjaxFormMixin, UpdateView):
+    model = BulkUploadEvent
+    form_class = BulkUploadEventForm
+    context_object_name = 'event_template'
+    template_name='ooi_ci_tools/part_bulkupload_edit.html'
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        file_name = self.kwargs['file']
+        part_id = self.kwargs['part_id']
+        bulk_file = BulkFile.objects.get(file_name = file_name)
+        file_records = BulkVocabRecord.objects.filter(bulk_file = bulk_file)
+        bulk_file_form = EventVocabFileFormset(
+            instance=self.object,
+            queryset=file_records
+        )
+        return self.render_to_response(
+            self.get_context_data(
+                form=form,
+                bulk_file_form=bulk_file_form,
+                file_name=file_name,
+                part_id=part_id
+            )
+        )
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        bulk_file_form = EventVocabFileFormset(
+            self.request.POST,
+            instance=self.object
+        )
+        if (form.is_valid() and bulk_file_form.is_valid()):
+            return self.form_valid(form, bulk_file_form)
+        return self.form_invalid(form, bulk_file_form)
+
+    def form_valid(self, form, bulk_file_form):
+        form.instance.approved = False
+        form.save()
+        handle_reviewers(form.instance.user_draft, form.instance.user_approver, form.cleaned_data['user_draft'])
+        self.object = form.save()
+        bulk_file_form.instance = self.object
+        bulk_file_form.save()
+        _create_action_history(self.object, Action.UPDATE, self.request.user)
+        job = check_events.delay()
+        response = HttpResponseRedirect(self.get_success_url())
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            data = {
+                'message': "Successfully submitted form data.",
+                'object_id': self.object.id,
+                'object_type': self.object.get_object_type(),
+                'detail_path': self.get_success_url(),
+            }
+            return JsonResponse(data)
+        else:
+            return response
+
+
+    def form_invalid(self, form, bulk_file_form):
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            if form.errors:
+                data = form.errors
+                return JsonResponse(
+                    data,
+                    status=400,
+                    safe=False
+                )
+            if bulk_file_form.errors:
+                data = bulk_file_form.errors
+                return JsonResponse(
+                    data,
+                    status=400,
+                    safe=False
+                )
+            
+        else:
+            return self.render_to_response(
+                self.get_context_data(
+                    form=form,
+                    bulk_file_form=bulk_file_form,
+                    form_errors=form_errors
+                )
+            )
+
+    def get_success_url(self):
+        part_id = self.kwargs['part_id']
+        return reverse('parts:ajax_parts_detail', args=(part_id, ))
+
+# Handles deletion of Inventory Bulk Upload Files
+class InvBulkUploadEventDelete(LoginRequiredMixin, AjaxFormMixin, DeleteView):
+    model = BulkUploadEvent
+    context_object_name='event_template'
+    template_name = 'ooi_ci_tools/bulkupload_delete.html'
+    redirect_field_name = 'home'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['inv_id'] = self.kwargs['inv_id']
+        return context
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'object_type': 'bulk_upload_event',
+        }
+        self.object.delete()
+        job = check_events.delay()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'object_type': 'bulk_upload_event',
+        }
+        self.object.delete()
+        job = check_events.delay()
+        return JsonResponse(data)
+
+    def get_success_url(self):
+        inv_id = self.kwargs['inv_id']
+        return reverse('inventory:ajax_inventory_detail', args=(inv_id, ))
+
+
+# Handles deletion of Part Bulk Upload Files
+class PartBulkUploadEventDelete(LoginRequiredMixin, AjaxFormMixin, DeleteView):
+    model = BulkUploadEvent
+    context_object_name='event_template'
+    template_name = 'ooi_ci_tools/part_bulkupload_delete.html'
+    redirect_field_name = 'home'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['part_id'] = self.kwargs['part_id']
+        return context
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'object_type': 'bulk_upload_event',
+        }
+        self.object.delete()
+        job = check_events.delay()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'object_type': 'bulk_upload_event',
+        }
+        self.object.delete()
+        job = check_events.delay()
+        return JsonResponse(data)
+
+    def get_success_url(self):
+        part_id = self.kwargs['part_id']
+        return reverse('parts:ajax_parts_detail', args=(part_id, ))

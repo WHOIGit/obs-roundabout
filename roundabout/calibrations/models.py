@@ -26,9 +26,10 @@ from django.utils import timezone
 from roundabout.inventory.models import Inventory, Deployment, Action
 from roundabout.parts.models import Part
 from roundabout.users.models import User
+from roundabout.ooi_ci_tools.models import CCCEvent
 
 # Tracks Calibration Coefficient event history across Inventory Parts
-class CalibrationEvent(models.Model):
+class CalibrationEvent(CCCEvent):
     class Meta:
         ordering = ['-calibration_date']
         get_latest_by = 'calibration_date'
@@ -36,28 +37,10 @@ class CalibrationEvent(models.Model):
         return self.calibration_date.strftime("%m/%d/%Y")
     def get_object_type(self):
         return 'calibration_event'
-    APPROVAL_STATUS = (
-        (True, "Approved"),
-        (False, "Draft"),
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
     calibration_date = models.DateTimeField(default=timezone.now)
-    user_draft = models.ManyToManyField(User, related_name='calibration_events_drafter', blank=True)
-    user_approver = models.ManyToManyField(User, related_name='calibration_events_approver')
-    inventory = models.ForeignKey(Inventory, related_name='calibration_events', on_delete=models.CASCADE, null=False)
-    deployment = models.ForeignKey(Deployment, related_name='calibration_events', on_delete=models.CASCADE, null=True)
-    approved = models.BooleanField(choices=APPROVAL_STATUS, blank=False, default=False)
-    detail = models.TextField(blank=True)
 
     def get_actions(self):
         return self.actions.filter(object_type=Action.CALEVENT)
-
-    def get_sorted_reviewers(self):
-        return self.user_draft.all().order_by('username')
-
-    def get_sorted_approvers(self):
-        return self.user_approver.all().order_by('username')
 
     # method to return a date range that corresponds to the period of time when this CalibrationEvent is valid
     # this range corresponds to this calibration_date -> next latest calibration_date.
@@ -76,35 +59,26 @@ class CalibrationEvent(models.Model):
         print(self)
         return calibration_range
 
+class CalibrationEventHyperlink(models.Model):
+    text = models.CharField(max_length=255, unique=False, blank=False, null=False)
+    url = models.URLField(max_length=1000)
+    parent = models.ForeignKey(CalibrationEvent, related_name='hyperlinks',
+                 on_delete=models.CASCADE, null=False, blank=False)
+
+    class Meta: ordering = ['text']
+    def __str__(self): return self.text
 
 # Tracks Coefficient Name Event history across Parts
-class CoefficientNameEvent(models.Model):
+class CoefficientNameEvent(CCCEvent):
     class Meta:
         ordering = ['-created_at']
     def __str__(self):
         return self.created_at.strftime("%m/%d/%Y")
     def get_object_type(self):
         return 'coefficient_name_event'
-    APPROVAL_STATUS = (
-        (True, "Approved"),
-        (False, "Draft"),
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    user_draft = models.ManyToManyField(User, related_name='coefficient_name_events_reviewers', blank=True)
-    user_approver = models.ManyToManyField(User, related_name='coefficient_name_events_approvers')
-    part = models.ForeignKey(Part, related_name='coefficient_name_events', on_delete=models.CASCADE, null=True)
-    approved = models.BooleanField(choices=APPROVAL_STATUS, blank=False, default=False)
-    detail = models.TextField(blank=True)
 
     def get_actions(self):
-        return self.actions.filter(object_type=Action.COEFFNAMEEVENT)
-
-    def get_sorted_reviewers(self):
-        return self.user_draft.all().order_by('username')
-
-    def get_sorted_approvers(self):
-        return self.user_approver.all().order_by('username')
+        return self.actions.filter(object_type='coefficientnameevent')
 
 
 # Tracks Calibrations across Parts
@@ -121,9 +95,11 @@ class CoefficientName(models.Model):
         ("1d", "1-Dimensional Array"),
         ("2d", "2-Dimensional Array"),
     )
-    calibration_name = models.CharField(max_length=255, unique=False, db_index=True)
+    calibration_name = models.CharField(max_length=255, unique=False, db_index=True, blank=False, null=False)
     value_set_type = models.CharField(max_length=3, choices=VALUE_SET_TYPE, null=False, blank=False, default="sl")
-    sigfig_override = models.IntegerField(validators=[MinValueValidator(1), MaxValueValidator(20)], null=False, blank=True, default=3, help_text='Part-based default if sigfigs cannot be captured from input')
+    sigfig_override = models.IntegerField(null=False, blank=True, default=3, help_text='Part-based default if sigfigs cannot be captured from input')
+    threshold_low = models.CharField(max_length = 255, unique = False, db_index = False, blank=True, help_text='Coefficient Threshold Low override. (Digits + 1 optional decimal point)')
+    threshold_high = models.CharField(max_length = 255, unique = False, db_index = False, blank=True, help_text='Coefficient Threshold High override. (Digits + 1 optional decimal point)')
     deprecated = models.BooleanField(null=False, default=False)
     created_at = models.DateTimeField(default=timezone.now)
     part = models.ForeignKey(Part, related_name='coefficient_names', on_delete=models.CASCADE, null=True)

@@ -24,12 +24,12 @@
 <div id = 'calibrations-section'>
     <div class="ajax-detail-link float-right">
         {% if not user|has_group:"inventory only" %}
-            {% if part_template.coefficient_name_events.exists %}
+            {% if part_template.part_coefficientnameevents.exists %}
                 <div class = 'ajax-detail-link float-right'>
                     <a  href="#"
                         class="btn btn-primary btn-sm mr-2"
                         role="button"
-                        data-detail-url="{% url 'calibrations:event_coeffname_update' part_template.coefficient_name_events.first.id %}"
+                        data-detail-url="{% url 'calibrations:event_coeffname_update' part_template.part_coefficientnameevents.first.id %}"
                         data-node-id="{{ part_template.id }}"
                         data-node-type="parts">
                             Edit Calibrations
@@ -50,7 +50,7 @@
     <hr>
     <div id="coefficient_name-template" aria-labelledby="coefficient_name-template-tab">
         <ul class="list-group">
-            {% for event in part_template.coefficient_name_events.all %}
+            {% for event in part_template.part_coefficientnameevents.all %}
                 <li class="list-group-item">
                     <a  class="collapsed" 
                         data-toggle="collapse" 
@@ -66,6 +66,7 @@
                         aria-controls="coeff_name-{{ event.id }}" 
                         aria-expanded="false" 
                         role="button"
+                        id = 'badge_tag'
                     >
                         <i class="fa" aria-hidden="true"></i>
                         <span class="sr-only">Expand/Collapse Default</span>
@@ -81,8 +82,12 @@
                     <div class="collapse mt-3" id="coeff_name-{{ event.id }}">
                         <hr>
                         {% if user in event.user_draft.all %}
-                            <button class="btn btn-success btn-sm mr-2" id='expander-date-{{event.id}}' data-reviewer-url="{% url 'calibrations:event_coeffname_approve' event.id user.id %}">
+                            <button class="btn btn-success btn-sm mr-2" id='calname_expander-date-{{event.id}}' data-reviewer-url="{% url 'calibrations:event_review_toggle' event.id user.id event.get_object_type %}">
                                 Approve
+                            </button>
+                        {% elif user in event.user_approver.all %}
+                            <button class="btn btn-warning btn-sm mr-2" id='calname_expander-date-{{event.id}}' data-reviewer-url="{% url 'calibrations:event_review_toggle' event.id user.id event.get_object_type %}">
+                                Unapprove
                             </button>
                         {% endif %}
                         {% if not user|has_group:"inventory only" %}
@@ -141,11 +146,23 @@
                                                                 <thead>
                                                                     <th>Type</th>
                                                                     <th>Significant Figures</th>
+                                                                    <th>Coefficient Threshold (Low)</th>
+                                                                    <th>Coefficient Threshold (High)</th>
                                                                 </thead>
                                                                 <tbody class = 'coefficient_name-tbody' id = 'coefficient_name-val-tbody' style = 'overflow: auto; max-height: 200px'>
                                                                     <tr style = 'text-align: center;'>
                                                                         <td>{{ name.value_set_type }}</td>
                                                                         <td>{{ name.sigfig_override }}</td>
+                                                                        {% if name.threshold_low and name.threshold_high %}
+                                                                            <td>{{ name.threshold_low }}</td>
+                                                                            <td>{{ name.threshold_high }}</td>
+                                                                        {% elif name.thresholds.exists  %}
+                                                                            <td>{{ name.thresholds.first.low }}</td>
+                                                                            <td>{{ name.thresholds.first.high }}</td>
+                                                                        {% else %}
+                                                                            <td>0</td>
+                                                                            <td>0</td>
+                                                                        {% endif %}
                                                                     </tr>
                                                                 </tbody>
                                                             </table>
@@ -217,37 +234,15 @@
         // Toggle display of Constant functionality 
         let user_id = '{{ user.id }}'
         let ccc_toggle = '{{ part_template.part_type.ccc_toggle }}';
+        let part_id = '{{part_template.id}}';
         if (ccc_toggle == 'True') {
             $('#calibrations-section').show();
         } else {
             $('#calibrations-section').hide();
         }
 
-        // Swap Reviewers as Approvers
-        $('#coefficient_name-template').on('click', 'button[id^=expander]', function(e) {
-            e.preventDefault();
-            let url = $(this).attr('data-reviewer-url');
-            let grandParent = $(this).parent().parent()
-            let review_badge = grandParent.find('#review-badge');
-            let progress_badge = grandParent.find('#progress-badge');
-            let reviewer = grandParent.find('#reviewer-' + user_id)
-            let approver_list = grandParent.find('#approvers');
-            if (review_badge.length) {
-                $.ajax({
-                    url: url,
-                    success: function (data) {
-                        if (data.approved) {
-                            review_badge.after('<span id = "approve-badge" class = "badge badge-pill badge-success">Approved</span>');
-                            progress_badge.hide();
-                        }
-                        $(this).remove();
-                        approver_list.append("<span id='approver-{{ user.id }}'>{{ user.username }}</span>");
-                        review_badge.remove();
-                        reviewer.hide();
-                    }
-                });
-            }
-        });
+        handleReviewBadges('#coefficient_name-template', 'button[id^=calname_expander]', '{{ user.id }}', '{{ user.username }}', part_id)
+        
     });
 </script>
 {% endblock javascript %}

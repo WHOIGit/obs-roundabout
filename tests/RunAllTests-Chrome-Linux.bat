@@ -2,11 +2,15 @@
 
 set -e
 
+chrome --version
+chromedriver -v
+node -v
+
 # Runs all Roundabout Selenium Webdriver automated tests in linux Docker container. Takes about 14 minutes to run.
 echo Running Chrome Tests
 
 val=$(node AddEditLocations.js chrome headless admin)
-echo $val 
+echo $val
 if [[ "$val" == *"failed."* ]]; then
   exit 1
 fi
@@ -29,18 +33,6 @@ if [[ "$val" == *"failed."* ]]; then
   exit 1
 fi
 
-val=$(node ImportExportInventory.js chrome headless admin)
-echo $val
-if [[ "$val" == *"failed."* ]]; then
-  exit 1
-fi
-
-val=$(node ExportCustomFields.js chrome headless admin)
-echo $val
-if [[ "$val" == *"failed."* ]]; then
-  exit 1
-fi
-
 val=$(node ExportCruise.js chrome headless admin)
 echo $val
 if [[ "$val" == *"failed."* ]]; then
@@ -53,13 +45,25 @@ if [[ "$val" == *"failed."* ]]; then
   exit 1
 fi
 
-val=$(node ConstantsConfigs.js chrome headless admin )
+val=$(node ImportExportInventory.js chrome headless admin)
 echo $val
 if [[ "$val" == *"failed."* ]]; then
   exit 1
 fi
 
-val=$(node CalibrationsCoefs.js chrome headless admin )
+val=$(node ExportCustomFields.js chrome headless admin)
+echo $val
+if [[ "$val" == *"failed."* ]]; then
+  exit 1
+fi
+
+val=$(node AdminUser.js chrome headless admin )
+echo $val
+if [[ "$val" == *"failed."* ]]; then
+  exit 1
+fi
+
+val=$(node ConstantsConfigs.js chrome headless admin )
 echo $val
 if [[ "$val" == *"failed."* ]]; then
   exit 1
@@ -71,7 +75,7 @@ if [[ "$val" == *"failed."* ]]; then
   exit 1
 fi
 
-val=$(node AdminUser.js chrome headless admin )
+val=$(node CalibrationsCoefs.js chrome headless admin )
 echo $val
 if [[ "$val" == *"failed."* ]]; then
   exit 1

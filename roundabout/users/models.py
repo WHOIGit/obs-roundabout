@@ -18,20 +18,20 @@
 # along with ooicgsn-roundabout in the COPYING.md file at the project root.
 # If not, see <http://www.gnu.org/licenses/>.
 """
+
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django.urls import reverse
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext as _
 
 
 class User(AbstractUser):
-    # First Name and Last Name do not cover name patterns
-    # around the globe.
-    name =  models.CharField(_("Name of User"), blank=True, max_length=255)
+    # First Name and Last Name do not cover name patterns around the globe.
+    name = models.CharField(_("Name of User"), blank=True, max_length=255)
     is_infield = models.BooleanField(default=False)
 
     class Meta:
-        ordering = ['username']
+        ordering = ["username"]
 
     def __str__(self):
         return self.username

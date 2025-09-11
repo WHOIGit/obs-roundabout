@@ -26,33 +26,22 @@ from roundabout.assemblies.models import AssemblyPart
 from roundabout.inventory.models import Inventory, Deployment, DeploymentAction, Action
 from roundabout.parts.models import Part
 from roundabout.users.models import User
+from roundabout.ooi_ci_tools.models import CCCEvent
 
 
 # Tracks Configuration and Constant event history across Inventory Parts
-class ConfigEvent(models.Model):
+class ConfigEvent(CCCEvent):
     class Meta:
         ordering = ['-configuration_date']
     def __str__(self):
         return self.configuration_date.strftime("%m/%d/%Y")
     def get_object_type(self):
         return 'config_event'
-    APPROVAL_STATUS = (
-        (True, "Approved"),
-        (False, "Draft"),
-    )
     CONFIG_TYPE = (
         ("cnst", "Constant"),
         ("conf", "Configuration"),
     )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
     configuration_date = models.DateTimeField(default=timezone.now)
-    user_draft = models.ManyToManyField(User, related_name='config_events_reviewer', blank=True)
-    user_approver = models.ManyToManyField(User, related_name='config_events_approver')
-    inventory = models.ForeignKey(Inventory, related_name='config_events', on_delete=models.CASCADE, null=False)
-    deployment = models.ForeignKey(Deployment, related_name='config_events', on_delete=models.CASCADE, null=True)
-    approved = models.BooleanField(choices=APPROVAL_STATUS, blank=False, default=False)
-    detail = models.TextField(blank=True)
     config_type = models.CharField(max_length=4, choices=CONFIG_TYPE, null=False, blank=False, default="cnst")
 
     def get_actions(self):
@@ -64,41 +53,26 @@ class ConfigEvent(models.Model):
                 return self.deployment.deployment_to_field_date.strftime("%m/%d/%Y")
         return 'TBD'
 
-    def get_sorted_reviewers(self):
-        return self.user_draft.all().order_by('username')
+class ConfigEventHyperlink(models.Model):
+    text = models.CharField(max_length=255, unique=False, blank=False, null=False)
+    url = models.URLField(max_length=1000)
+    parent = models.ForeignKey(ConfigEvent, related_name='hyperlinks',
+                 on_delete=models.CASCADE, null=False, blank=False)
 
-    def get_sorted_approvers(self):
-        return self.user_approver.all().order_by('username')
-
+    class Meta: ordering = ['text']
+    def __str__(self): return self.text
 
 # Tracks Config Name  history across Parts
-class ConfigNameEvent(models.Model):
+class ConfigNameEvent(CCCEvent):
     class Meta:
         ordering = ['-created_at']
     def __str__(self):
         return self.created_at.strftime("%m/%d/%Y")
     def get_object_type(self):
         return 'config_name_event'
-    APPROVAL_STATUS = (
-        (True, "Approved"),
-        (False, "Draft"),
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    user_draft = models.ManyToManyField(User, related_name='config_name_events_reviewers', blank=True)
-    user_approver = models.ManyToManyField(User, related_name='config_name_events_approvers')
-    part = models.ForeignKey(Part, related_name='config_name_events', on_delete=models.CASCADE, null=True)
-    approved = models.BooleanField(choices=APPROVAL_STATUS, blank=False, default=False)
-    detail = models.TextField(blank=True)
 
     def get_actions(self):
-        return self.actions.filter(object_type=Action.CONFNAMEEVENT)
-
-    def get_sorted_reviewers(self):
-        return self.user_draft.all().order_by('username')
-
-    def get_sorted_approvers(self):
-        return self.user_approver.all().order_by('username')
+        return self.actions.filter(object_type='confignameevent')
 
 # Tracks Configurations across Parts
 class ConfigName(models.Model):
@@ -143,33 +117,16 @@ class ConfigValue(models.Model):
 
 
 # Tracks Constant Default event history across Inventory Parts
-class ConstDefaultEvent(models.Model):
+class ConstDefaultEvent(CCCEvent):
     class Meta:
         ordering = ['-created_at']
     def __str__(self):
         return self.created_at.strftime("%m/%d/%Y")
     def get_object_type(self):
         return 'constant_default_event'
-    APPROVAL_STATUS = (
-        (True, "Approved"),
-        (False, "Draft"),
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    user_draft = models.ManyToManyField(User, related_name='constant_default_events_reviewer', blank=True)
-    user_approver = models.ManyToManyField(User, related_name='constant_default_events_approver')
-    inventory = models.ForeignKey(Inventory, related_name='constant_default_events', on_delete=models.CASCADE, null=False)
-    approved = models.BooleanField(choices=APPROVAL_STATUS, blank=False, default=False)
-    detail = models.TextField(blank=True)
 
     def get_actions(self):
         return self.actions.filter(object_type=Action.CONSTDEFEVENT)
-
-    def get_sorted_reviewers(self):
-        return self.user_draft.all().order_by('username')
-
-    def get_sorted_approvers(self):
-        return self.user_approver.all().order_by('username')
 
 
 # Tracks Constant Defaults across ConstDefaultEvents
@@ -188,33 +145,16 @@ class ConstDefault(models.Model):
 
 
 # Tracks Config Default Event history across Assembly Parts
-class ConfigDefaultEvent(models.Model):
+class ConfigDefaultEvent(CCCEvent):
     class Meta:
         ordering = ['-created_at']
     def __str__(self):
         return self.created_at.strftime("%m/%d/%Y")
     def get_object_type(self):
         return 'config_default_event'
-    APPROVAL_STATUS = (
-        (True, "Approved"),
-        (False, "Draft"),
-    )
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    user_draft = models.ManyToManyField(User, related_name='config_default_events_reviewer', blank=True)
-    user_approver = models.ManyToManyField(User, related_name='config_default_events_approver')
-    assembly_part = models.ForeignKey(AssemblyPart, related_name='config_default_events', on_delete=models.CASCADE, null=False)
-    approved = models.BooleanField(choices=APPROVAL_STATUS, blank=False, default=False)
-    detail = models.TextField(blank=True)
 
     def get_actions(self):
-        return self.actions.filter(object_type=Action.CONFDEFEVENT)
-
-    def get_sorted_reviewers(self):
-        return self.user_draft.all().order_by('username')
-
-    def get_sorted_approvers(self):
-        return self.user_approver.all().order_by('username')
+        return self.actions.filter(object_type='configdefaultevent')
 
 
 # Tracks Config Defaults across ConstDefaultEvents

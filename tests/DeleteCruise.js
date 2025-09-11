@@ -83,11 +83,10 @@ var password;
         await driver.findElement(By.id("id_login")).sendKeys(user);
         await driver.findElement(By.id("id_password")).sendKeys(password);
         await driver.findElement(By.css(".primaryAction")).click();
+        await new Promise(r => setTimeout(r, 2000));
 
         // DELETE CRUISE/VESSEL TEST
 
-        // Delete a Vessel
-        // TO DO: When Ethan fixes warning there are active cruises, put that in
         await driver.findElement(By.linkText("Cruises")).click()
         while ((await driver.findElements(By.id("action"))).length == 0)
         {
@@ -102,18 +101,18 @@ var password;
         await driver.findElement(By.linkText("Edit Vessel List")).click()
         await new Promise(r => setTimeout(r, 2000));
 
-        // Delete all Vessels
-        while ((await driver.findElements(By.css("tr:nth-child(" + 1 + ") .btn-danger"))).length != 0) {
-            await driver.findElement(By.css("tr:nth-child(" + 1 + ") .btn-danger")).click();
-            while ((await driver.findElements(By.css(".btn-danger"))).length == 0) {
-                await new Promise(r => setTimeout(r, 2000));
-                console.log("Wait 2 seconds for Confirm.");
-            }
-            await driver.findElement(By.css(".btn-danger")).click();
+        // Delete Maui Princess vessel
+        await driver.findElement(By.partialLinkText("Maui Princess")).click();
+        await new Promise(r => setTimeout(r, 2000));
+        await driver.findElement(By.linkText("Delete")).click();
+        while ((await driver.findElements(By.css(".btn-danger"))).length == 0) {
             await new Promise(r => setTimeout(r, 2000));
+            console.log("Wait 2 seconds for Confirm.");
         }
+        await driver.findElement(By.css(".btn-danger")).click();  // confirm
+        await new Promise(r => setTimeout(r, 2000));
  
-	console.log("All Vessels Deleted.");
+	    console.log("Vessel Deleted.");
 
         // Delete All Cruises
         while ((await driver.findElements(By.linkText("Cruises"))).length == 0) {
@@ -121,29 +120,20 @@ var password;
             console.log("Wait 2 seconds for Cruises.");
         }
         await driver.findElement(By.linkText("Cruises")).click()
-	await new Promise(r => setTimeout(r, 4000));
+	    await new Promise(r => setTimeout(r, 4000));
 
-	// Circleci times out deleting all cruises, just delete one cruise
-//        while ((await driver.findElements(By.xpath("//li/ul/li/a"))).length != 0) {
-	  if ((await driver.findElements(By.xpath("//li/ul/li/a"))).length != 0)
-	  {
-            await driver.findElement(By.xpath("//li/ul/li/a")).click();
-
-            while ((await driver.findElements(By.linkText("Delete"))).length == 0) {
-                await new Promise(r => setTimeout(r, 2000));
-                console.log("Wait 2 seconds for Delete Cruise.");
-            }
-            await driver.findElement(By.linkText("Delete")).click();
-
-            while ((await driver.findElements(By.css(".btn-danger"))).length == 0) {
-                await new Promise(r => setTimeout(r, 2000));
-                console.log("Wait 2 seconds for Confirm.");
-            }
-            await driver.findElement(By.css(".btn-danger")).click();
-            await new Promise(r => setTimeout(r, 4000));
+        // Delete MAUI cruise
+        await driver.findElement(By.partialLinkText("MAUI")).click();
+        await new Promise(r => setTimeout(r, 2000));
+        await driver.findElement(By.linkText("Delete")).click();
+        while ((await driver.findElements(By.css(".btn-danger"))).length == 0) {
+            await new Promise(r => setTimeout(r, 2000));
+            console.log("Wait 2 seconds for Confirm.");
         }
+        await driver.findElement(By.css(".btn-danger")).click();
+        await new Promise(r => setTimeout(r, 4000));
 
-	console.log("Cruise Deleted.");
+	    console.log("Cruise Deleted.");
 
         // Close browser window
         driver.quit();

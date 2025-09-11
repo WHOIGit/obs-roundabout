@@ -24,8 +24,9 @@
 {% load common_tags %}
 {% load inventory_tags %}
 {% load mptt_tags %}
+{% load tags_templatetags %}
 
-<script src="{% static 'js/vendor/highcharts.js' %}"></script>
+<script src="https://code.highcharts.com/highcharts.js"></script>
 
 {% if inventory_item %}
 <div class="card-header" data-object-id="{{ inventory_item.id }}"><h3>{{ inventory_item.part.name }}</h3></div>
@@ -38,13 +39,7 @@
         Choose Action
       </button>
       <div class="dropdown-menu dropdown-menu-right ajax-detail-link" aria-labelledby="action">
-          <!---
-            <a class="dropdown-item" href="#"
-                data-detail-url="{% url 'inventory:ajax_inventory_action' 'invchange' inventory_item.id %}"
-                data-node-id="{{ inventory_item.id }}"
-                data-location-id="{{ inventory_item.location.id}}"
-                data-node-type="{{ node_type }}">Inventory Change</a>
-            --->
+         
         {% if not inventory_item.build and not inventory_item.parent %}
             <a class="dropdown-item" href="#"
                 data-detail-url="{% url 'inventory:ajax_inventory_action' 'locationchange' inventory_item.id %}"
@@ -118,7 +113,7 @@
         {% endif %}
 
             <a class="dropdown-item" href="#"
-                data-detail-url="{% url 'inventory:ajax_inventory_action' 'test' inventory_item.id %}"
+                data-detail-url="{% url 'inventory:ajax_test_result' inventory_item.id %}"
                 data-node-id="{{ inventory_item.id }}"
                 data-location-id="{{ inventory_item.location.id}}"
                 data-node-type="{{ node_type }}">Test</a>
@@ -153,8 +148,8 @@
                 data-location-id="{{ inventory_item.location.id}}"
                 data-node-type="{{ node_type }}">Edit Inventory Details</a>
 
-            {% if not user|has_group:"inventory only" %}
-                {% if inventory_item.part.coefficient_name_events.exists and inventory_item.part.part_type.ccc_toggle %}
+            {% if user|has_group:"admin" or user|has_group:"technician" %}
+                {% if part_has_cals and inventory_item.part.part_type.ccc_toggle %}
                     <a  id="add_coefficient_action"
                         class="dropdown-item"
                         href="#"
@@ -164,7 +159,7 @@
                         data-node-type="calibration_event">Add Calibration Coefficients</a>
                 {% endif %}
 
-                {% if not inventory_item.constant_default_events.exists and part_has_consts and inventory_item.part.part_type.ccc_toggle %}
+                {% if not inventory_item.inventory_constdefaultevents.exists and part_has_consts and inventory_item.part.part_type.ccc_toggle %}
                     <a  id="add_constdefault_action"
                         class="dropdown-item"
                         href="#"
@@ -174,7 +169,7 @@
                         data-node-type="constant_default}">Add Constant Defaults</a>
                 {% endif %}
 
-                {% if part_has_consts and inventory_item.build.current_deployment and inventory_item.part.part_type.ccc_toggle %}
+                {% if part_has_consts and inventory_item.part.part_type.ccc_toggle %}
                     <a  id="add_const_action"
                         class="dropdown-item"
                         href="#"
@@ -184,7 +179,7 @@
                         data-node-type="config_event}">Add Constants</a>
                 {% endif %}
 
-                {% if part_has_configs and inventory_item.build.current_deployment and inventory_item.part.part_type.ccc_toggle %}
+                {% if part_has_configs and inventory_item.part.part_type.ccc_toggle %}
                     <a  id="add_conf_action"
                         class="dropdown-item"
                         href="#"
@@ -363,6 +358,48 @@
                 </td>
             </tr>
             {% endif %}
+            {% if inventory_item.hyperlinks.exists %}
+            <tr>
+                <th>Links</th>
+                <td>
+                  <ul>{% for link in inventory_item.hyperlinks.all %}
+                      <li><a target="_blank" href="{{ link.url }}">{{ link.text }} <i class="fas fa-link"></i></a></li>
+                  {% endfor %}</ul>
+                </td>
+            </tr>
+            {% endif %}
+            {% if test_results.exists %}
+            <tr>
+                <th>
+                    Current Test Status
+                </th>
+                <td>
+                    <div class="float-right">
+                        <button type="button" class="btn btn-danger btn-sm" data-toggle="modal" data-target="#modal-confirm-tests-reset">
+                            Reset All Tests
+                        </button>
+
+                        {% include "inventory/modal_confirm_tests_reset.html" with item=inventory_item  %}      
+                    </div>
+
+                    <ul class="no-style-list ajax-detail-link">
+                        {% for test_result in test_results.all %}
+                            <li class="pb-2">
+                                <a class="text-uppercase btn btn-sm {% if test_result.result == 'pass' %}btn-success{% elif test_result.result == 'fail' %}btn-danger{% else %}btn-warning{% endif %}"
+                                    href="#" role="button"
+                                    data-toggle="tooltip" data-placement="right" title="Click to update"
+                                    data-detail-url="{% url 'inventory:ajax_test_result' inventory_item.id test_result.id %}"
+                                    data-node-id="{{ inventory_item.id }}"
+                                    data-node-type="{{ node_type }}">
+                                    {{test_result.inventory_test.name}} - {{test_result.get_result_display}}
+                                </a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                    
+                </td>
+            </tr>
+            {% endif %}
         </tbody>
     </table>
 
@@ -388,7 +425,12 @@
 
         {% if inventory_item.inventory_deployments.exists %}
             <li class="nav-item">
-              <a class="nav-link" id="deployments-tab" data-toggle="tab" href="#deployments" role="tab" aria-controls="deployments" aria-selected="false">Deployments</a>
+                <a class="nav-link" id="deployments-tab" data-toggle="tab" href="#deployments" role="tab" aria-controls="deployments" aria-selected="false">
+                    Deployments
+                    {% if user_rev_deployment_events %}
+                        <span id = "review-badge_dep-tab" class = "badge badge-pill badge-secondary">Review Requested</span>
+                    {% endif %}
+                </a>
             </li>
         {% endif %}
 
@@ -414,25 +456,59 @@
           <a class="nav-link" id="part-template-tab" data-toggle="tab" href="#part-template" role="tab" aria-controls="part-template" aria-selected="false">Part Specs</a>
         </li>
 
-        {% if inventory_item.calibration_events.exists and inventory_item.part.part_type.ccc_toggle %}
+        {% if inventory_item.inventory_calibrationevents.exists and inventory_item.part.part_type.ccc_toggle %}
             <li class="nav-item">
-                <a class="nav-link" id="calibration-template-tab" data-toggle="tab" href="#calibration-template" role="tab" aria-controls="calibration-template" aria-selected="false">Calibration Coefficient History</a>
+                <a class="nav-link" id="calibration-template-tab" data-toggle="tab" href="#calibration-template" role="tab" aria-controls="calibration-template" aria-selected="false">
+                    Calibration Coefficient History
+                    {% if user_rev_cal_events %}
+                        <span id = "review-badge_cal-tab" class = "badge badge-pill badge-secondary">Review Requested</span>
+                    {% endif %}
+                </a>
             </li>
         {% endif %}
 
-        {% if inventory_item.constant_default_events.exists and inventory_item.part.part_type.ccc_toggle %}
+        {% if inventory_item.inventory_constdefaultevents.exists and inventory_item.part.part_type.ccc_toggle %}
             <li class="nav-item">
-                <a class="nav-link" id="const_default-template-tab" data-toggle="tab" href="#const_default-template" role="tab" aria-controls="const_default-template" aria-selected="false">Constant Defaults</a>
+                <a class="nav-link" id="const_default-template-tab" data-toggle="tab" href="#const_default-template" role="tab" aria-controls="const_default-template" aria-selected="false">
+                    Constant Defaults
+                    {% if user_rev_constdef_events %}
+                        <span id = "review-badge_constdef-tab" class = "badge badge-pill badge-secondary">Review Requested</span>
+                    {% endif %}
+                </a>
             </li>
         {% endif %}
 
-        {% if inventory_item.config_events.exists and inventory_item.part.part_type.ccc_toggle %}
+        {% if inv_has_const_events and inventory_item.part.part_type.ccc_toggle %}
             <li class="nav-item">
-                <a class="nav-link" id="const-template-tab" data-toggle="tab" href="#const-template" role="tab" aria-controls="const-template" aria-selected="false">Constant History</a>
+                <a class="nav-link" id="const-template-tab" data-toggle="tab" href="#const-template" role="tab" aria-controls="const-template" aria-selected="false">
+                    Constant History
+                    {% if user_rev_const_events %}
+                        <span id = "review-badge_const-tab" class = "badge badge-pill badge-secondary">Review Requested</span>
+                    {% endif %}
+                </a>
             </li>
+        {% endif %}
 
+        {% if inv_has_conf_events and inventory_item.part.part_type.ccc_toggle %}
             <li class="nav-item">
-                <a class="nav-link" id="conf-template-tab" data-toggle="tab" href="#conf-template" role="tab" aria-controls="conf-template" aria-selected="false">Configuration History</a>
+                <a class="nav-link" id="conf-template-tab" data-toggle="tab" href="#conf-template" role="tab" aria-controls="conf-template" aria-selected="false">
+                    Configuration History
+                    {% if user_rev_conf_events %}
+                        <span id = "review-badge_conf-tab" class = "badge badge-pill badge-secondary">Review Requested</span>
+                    {% endif %}
+                </a>
+            </li>
+        {% endif %}
+
+        {% if inv_has_bulk_event %}
+            <li id = 'bulk_tab' class="nav-item">
+                <a class="nav-link" id="bulkupload-template-tab" data-toggle="tab" href="#bulkupload-template" role="tab" aria-controls="bulkupload-template" aria-selected="false">
+                    Bulk Upload History
+                    {% if user_rev_bulk_events %}
+                        <span id = "review-badge_bulk-tab" class = "badge badge-pill badge-secondary">Review Requested</span>
+                    {% endif %}
+                </a>
+                
             </li>
         {% endif %}
 
@@ -441,46 +517,7 @@
 
     <div class="tab-content" id="inventory-tabs">
 
-        {% if inventory_item.actions.exists %}
-          <div class="tab-pane fade show active" id="history" role="tabpanel" aria-labelledby="history-tab">
-
-              <table class="table table-striped action-table">
-                  <thead>
-                    <th>Date</th>
-                    <th>Action</th>
-                    <th>Details</th>
-                    <th>Person</th>
-                    <th>Location</th>
-
-                  </thead>
-                  <tbody>
-                    {% for action in  inventory_item.actions.all %}
-                      <tr>
-                          <td>{{ action.created_at|date:"n/j/y H:i" }}</td>
-                          <td>{{ action.get_action_type_display }}</td>
-                          <td>
-                              {{ action.detail|safe }}
-                              {% for photo in action.photos.all %}
-                                  {% if photo.file_type == 'image' %}
-                                      <a href="{{ photo.photo.url }}" target="_blank">
-                                          <img src="{{ photo.photo.url }}" width="100%">
-                                      </a> <br><br>
-                                  {% else %}
-                                     <a href="{{ photo.photo.url }}" target="_blank"><i class='fa fa-file fa-3x'></i>
-                                         {{ photo.photo.name }}
-                                     </a>  <br><br>
-                                  {% endif %}
-                              {% endfor %}
-                          </td>
-                          <td>{{ action.user.username }}</td>
-                          <td>{{ action.location.name }}</td>
-                      </tr>
-                    {% endfor %}
-                  </tbody>
-            </table>
-
-          </div>
-        {% endif %}
+        {% include "ooi_ci_tools/action_comment_detail.html" with inventory_item=inventory_item user=user comment_list=comment_list  %}
 
         {% if inventory_item.inventory_deployments %}
         <div class="tab-pane fade" id="deployments" role="tabpanel" aria-labelledby="deployments-tab">
@@ -489,7 +526,7 @@
                 {% for inventory_deployment in inventory_item.inventory_deployments.all %}
                     <li class="list-group-item">
 
-                        {% include "inventory/inventory_deployment_detail.html" with inventory_deployment=inventory_deployment %}
+                        {% include "inventory/inventory_deployment_detail.html" with inventory_deployment=inventory_deployment user=user %}
 
                     </li>
                 {% endfor %}
@@ -687,6 +724,7 @@
         {% include "configs_constants/const_default_detail.html" with inventory_item=inventory_item user=user  %}
         {% include "configs_constants/configs_detail.html" with inventory_item=inventory_item user=user  %}
         {% include "configs_constants/constants_detail.html" with inventory_item=inventory_item user=user  %}
+        {% include "ooi_ci_tools/bulkupload_detail.html" with inventory_item=inventory_item user=user record_type='asset' %}
 
     </div>
 
@@ -709,6 +747,13 @@
 
 {% block javascript %}
 <script>
+    // Tooltip functions for Test buttons
+    $(function () {
+        $('[data-toggle="tooltip"]').tooltip();
+        $('[data-toggle="tooltip"]').click(function() {
+            $(this).tooltip('hide');
+        })
+    })
 
     /* Need to set a global JS variable is this item is on a Build to reference build_id for navtree functions */
     {% if inventory_item.build %}
@@ -746,6 +791,66 @@
             });
 
         });
+
+        let part_has_cals = '{{part_has_cals}}'
+        let part_has_configs = '{{part_has_configs}}'
+        let part_has_consts = '{{part_has_consts}}'
+        let ccc_toggle = '{{inventory_item.part.part_type.ccc_toggle}}'
+        let const_def_exists = '{{inventory_item.inventory_constdefaultevents.exists}}'
+        let inv_has_bulk_event = '{{inv_has_bulk_event}}'
+
+        if (inv_has_bulk_event == 'True') {
+            $('#bulk_tab').show()
+        } 
+
+        if (part_has_cals == 'True' && ccc_toggle == 'True') {
+            $('#add_coefficient_action').show()
+        } else {
+            $('#add_coefficient_action').hide()
+        }
+
+        if (part_has_consts == 'True' && const_def_exists == 'False'  && ccc_toggle == 'True') {
+            $('#add_constdefault_action').show()
+        } else {
+            $('#add_constdefault_action').hide()
+        }
+
+        if (part_has_consts == 'True'  && ccc_toggle == 'True') {
+            $('#add_const_action').show()
+        } else {
+            $('#add_const_action').hide()
+        }
+
+        if (part_has_configs == 'True'  && ccc_toggle == 'True') {
+            $('#add_conf_action').show()
+        } else {
+            $('#add_conf_action').hide()
+        }
+
+        $('#jstree-navtree').on('loaded.jstree', function() {
+            // Open the tree to the selected item
+            
+            setTimeout(function() { // Adding a slight delay to ensure the node is open and rendered
+                var selectedItem = $('#jstree-navtree').find('.jstree-clicked')
+                console.log(selectedItem)
+                if (selectedItem.length) {
+                    var container = $('#jstree-navtree').parent();
+                    var selectedItemOffsetFromTop = selectedItem.offset().top;
+                    var containerScrollTop = container.scrollTop();
+                    var containerHeight = container.height();
+                    var selectedItemHeight = selectedItem.outerHeight(true); // Include margin
+
+                    // Calculate the top scroll position to center the item
+                    var scrollTopToCenterItem = containerScrollTop + selectedItemOffsetFromTop - container.offset().top - (containerHeight / 2) + (selectedItemHeight / 2);
+                    
+                    container.animate({
+                        scrollTop: scrollTopToCenterItem
+                    }, 'slow');
+                }
+            }, 300); // Adjust delay as necessary
+        });
+            
+        
 
     });
 </script>

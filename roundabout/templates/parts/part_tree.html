@@ -43,7 +43,18 @@
                              {% loop %}
 
                                      <li data-jstree='{"icon":"fa fa-bolt"}'>
-                                         {% if key %}<a href="{% url 'parts:parts_detail' key.id location_pk %}"><span>{{ key.name }}</span></a>{% endif %}{% value %}
+                                         {% if key %
+                                            <a href="{% url 'parts:parts_detail' key.id location_pk %}">
+                                                <span>{{ key.name }}</span> 
+                                                {% if part.id in reviewer_list %}
+                                                    <span id="review-badge-{{part.id}}" class="badge badge-pill badge-secondary">Review Requested</span>
+                                                {% else %}
+                                                    <span id="review-badge-{{part.id}}" class="badge badge-pill badge-secondary" style = 'display: none;'>Review Requested</span>
+                                                {% endif %}
+                                                
+                                            </a>
+                                        {% endif %}
+                                        {% value %}
                                      </li>
 
                              {% endloop %}

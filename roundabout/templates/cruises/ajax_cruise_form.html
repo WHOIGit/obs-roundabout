@@ -32,7 +32,7 @@
 <div class="card-body">
 
 
-    <form class="form-horizontal ajax-form" method="post" action="" id="cruise-form" data-url='{{ request.build_absolute_uri|safe }}'>
+    <form class="form-horizontal ajax-form" method="post" action="" novalidate id="cruise-form" data-url='{{ request.build_absolute_uri|safe }}'>
       {% csrf_token %}
       {{ form|crispy }}
       {{ form.media }}
@@ -52,9 +52,26 @@
                   </div>
               {% endfor %}
           {% endif %}
-
-
       </div>
+
+    <div class="row">
+      <table class="table table-tight">
+        <thead>
+          <th>Hyperlink Text</th>
+          <th>URL</th>
+        </thead>
+        <tbody>
+          {{ link_formset.management_form }}
+
+          {% for link in link_formset %}
+            <tr>
+                <td {% if link.errors.text %} class="alert alert-danger"{% endif %}>{% if link.id  %}{{ link.DELETE }}{% endif %} {{ link.id }} {{ link.text }}</td>
+                <td {% if link.errors.url %} class="alert alert-danger"{% endif %}>{{ link.url }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
 
       <div class="control-group">
         <div class="controls">
@@ -96,7 +113,13 @@
     $("#id_cruise_stop_date").on("dp.change", function (e) {
         $('#id_cruise_start_date').data("DateTimePicker").maxDate(e.date);
      });
+
+    $(document).ready(function() {
+      $('#cruise-form tbody tr').formset({
+          prefix: 'hyperlinks', // <-- Needs to match the Django related_name for the models
+          addText: 'add row',
+          deleteText: 'remove',
+      });
+    });
 </script>
-
-
 {% endblock javascript %}

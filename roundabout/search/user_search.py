@@ -19,13 +19,13 @@
 # If not, see <http://www.gnu.org/licenses/>.
 """
 
-import django_tables2 as tables2
 from django import forms
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Q
 from django.urls import reverse
 from django.utils.html import format_html
 from django.views.generic import TemplateView
+from django_tables2 import Table, A, MultiTableMixin
 from django_tables2.columns import Column, DateTimeColumn, ManyToManyColumn, BooleanColumn
 from django_tables2_column_shifter.tables import ColumnShiftTable
 
@@ -36,11 +36,12 @@ from roundabout.inventory.models import Action, DeploymentAction, Inventory, Inv
 from roundabout.parts.models import Part
 from roundabout.assemblies.models import AssemblyPart
 from roundabout.users.models import User
-
+from roundabout.search.tables import trunc_render, ActionTable
+from roundabout.search.mixins import MultiExportMixin
 
 # ========= TABLE BASES ========== #
 
-class UserTableBase(tables2.Table):
+class UserTableBase(Table):
     class Meta:
         template_name = "django_tables2/bootstrap4.html"
         attrs = {'style': 'display: block; overflow-x: auto;'}
@@ -55,6 +56,10 @@ class CCCUserTableBase(UserTableBase):
     user_draft = ManyToManyColumn(verbose_name='Reviewers', accessor='user_draft', transform=lambda x: x.name, default='')
     created_at = DateTimeColumn(verbose_name='Date Entered', accessor='created_at', format='Y-m-d H:i')
     detail = Column(verbose_name='Note', accessor='detail')
+    def render_detail(self,value):
+        return trunc_render()(value)
+    def value_detail(self,value):
+        return value
 
 # ========= TABLES ========== #
 
@@ -65,20 +70,20 @@ class CalibrationTable(CCCUserTableBase):
         model = CalibrationEvent
         title = 'Calibration Events'
         fields = ['inventory__serial_number'] + CCCUserTableBase.Meta.fields
-    inventory__serial_number = Column(verbose_name='Inventory', linkify=dict(viewname="inventory:inventory_detail", args=[tables2.A('inventory__pk')]))
+    inventory__serial_number = Column(verbose_name='Inventory', linkify=dict(viewname="inventory:inventory_detail", args=[A('inventory__pk')]))
     value_names = ManyToManyColumn(verbose_name='Coefficient Names', accessor='coefficient_value_sets', transform=lambda x: x.coefficient_name)
     #value_notes = ManyToManyColumn(verbose_name='Coefficient Notes', accessor='coefficient_value_sets',
-    #                transform=lambda x: format_html('<b>{}:</b> [{}]<br>'.format(x.coefficient_name,x.notes)) if x.notes else '', separator='\n')
+    #                transform=lambda x: format_html('<b>{}:</b> [{}]<br>'.format(x.coefficient_name,trunc_render()(x.notes))) if x.notes else '', separator='\n')
 
 class ConfigConstTable(CCCUserTableBase):
     class Meta(CCCUserTableBase.Meta):
         model = ConfigEvent
         title = 'Configuration/Constant Events'
         fields = ['inventory__serial_number'] + CCCUserTableBase.Meta.fields
-    inventory__serial_number = Column(verbose_name='Inventory', linkify=dict(viewname="inventory:inventory_detail", args=[tables2.A('inventory__pk')]))
+    inventory__serial_number = Column(verbose_name='Inventory', linkify=dict(viewname="inventory:inventory_detail", args=[A('inventory__pk')]))
     value_names = ManyToManyColumn(verbose_name='Config/Constant Names', accessor='config_values', transform=lambda x: x.config_name)
     #value_notes = ManyToManyColumn(verbose_name='Config/Constant Notes', accessor='config_values',
-    #                transform=lambda x: format_html('<b>{}:</b> [{}]<br>'.format(x.config_name,x.notes)) if x.notes else '', separator='\n')
+    #                transform=lambda x: format_html('<b>{}:</b> [{}]<br>'.format(x.config_name,trunc_render()(x.notes))) if x.notes else '', separator='\n')
 
 
 ## CCC Name Events ##
@@ -88,7 +93,7 @@ class CoefficientNameEventTable(CCCUserTableBase):
         model = CoefficientNameEvent
         title = 'Calibration Name-Events'
         fields = ['part__name'] + CCCUserTableBase.Meta.fields
-    part__name = Column(verbose_name='Part', linkify=dict(viewname="parts:parts_detail", args=[tables2.A('part__pk')]))
+    part__name = Column(verbose_name='Part', linkify=dict(viewname="parts:parts_detail", args=[A('part__pk')]))
     value_names = ManyToManyColumn(verbose_name='Coefficient Names', accessor='coefficient_names', transform=lambda x: x.calibration_name)
 
 class ConfigNameEventTable(CCCUserTableBase):
@@ -96,7 +101,7 @@ class ConfigNameEventTable(CCCUserTableBase):
         model = ConfigNameEvent
         title = 'Configuration/Constant Name-Events'
         fields = ['part__name'] + CCCUserTableBase.Meta.fields
-    part__name = Column(verbose_name='Part', linkify=dict(viewname="parts:parts_detail", args=[tables2.A('part__pk')]))
+    part__name = Column(verbose_name='Part', linkify=dict(viewname="parts:parts_detail", args=[A('part__pk')]))
     value_names = ManyToManyColumn(verbose_name='Configuration Names', accessor='config_names', transform=lambda x: x.name)
 
 
@@ -107,7 +112,7 @@ class ConfigDefaultEventTable(CCCUserTableBase):
         model = ConfigDefaultEvent
         title = 'Configuration Default-Events'
         fields = ['assembly_part__part__name'] + CCCUserTableBase.Meta.fields
-    assembly_part__part__name = Column(verbose_name='Inventory', linkify=dict(viewname="assemblies:assemblypart_detail", args=[tables2.A('assembly_part__pk')]))
+    assembly_part__part__name = Column(verbose_name='Inventory', linkify=dict(viewname="assemblies:assemblypart_detail", args=[A('assembly_part__pk')]))
     value_names = ManyToManyColumn(verbose_name='Configurations', accessor='config_defaults',
                     transform=lambda x: format_html('<b>{}:</b> {}<br>'.format(x.config_name,x.default_value)), separator='\n')
 
@@ -116,7 +121,7 @@ class ConstDefaultEventTable(CCCUserTableBase):
         model = ConstDefaultEvent
         title = 'Constant Default-Events'
         fields = ['inventory__serial_number'] + CCCUserTableBase.Meta.fields
-    inventory__serial_number = Column(verbose_name='Inventory', linkify=dict(viewname="inventory:inventory_detail", args=[tables2.A('inventory__pk')]))
+    inventory__serial_number = Column(verbose_name='Inventory', linkify=dict(viewname="inventory:inventory_detail", args=[A('inventory__pk')]))
     value_names = ManyToManyColumn(verbose_name='Constants', accessor='constant_defaults',
                     transform=lambda x: format_html('<b>{}:</b> {}<br>'.format(x.config_name,x.default_value)), separator='\n')
 
@@ -132,44 +137,12 @@ class ActionUserTable(UserTableBase):
     def render_user(self,value):
         return value.name or value.username
 
-    def render_object(self,record):
-        html_string = '<a href={url}>{text}</a>'
-        parent_obj = record.get_parent()
-        if isinstance(parent_obj,(CalibrationEvent,ConfigEvent,ConstDefaultEvent)):
-            parent_obj = parent_obj.inventory
-        elif isinstance(parent_obj,(ConfigNameEvent,CoefficientNameEvent)):
-            parent_obj = parent_obj.part
-        elif isinstance(parent_obj,ConfigDefaultEvent):
-            parent_obj = parent_obj.assembly_part
+    def render_detail(self,value):
+        return trunc_render()(value)
+    def value_detail(self,value):
+        return value
 
-        if isinstance(parent_obj, Inventory):
-            inv_url = reverse("inventory:inventory_detail", args=[parent_obj.pk])
-            html_string = html_string.format(url=inv_url, text=parent_obj)
-            return format_html(html_string)
-        elif isinstance(parent_obj,Build):
-            build_url = reverse("builds:builds_detail", args=[parent_obj.pk])
-            html_string = html_string.format(url=build_url, text=parent_obj)
-            return format_html(html_string)
-        elif isinstance(parent_obj,Deployment):
-            build_url = reverse("builds:builds_detail", args=[record.deployment.build.pk])
-            deployment_anchor = '#deployment-{}-'.format(record.deployment.pk)  # doesn't work, anchor doesn't exist
-            deployment_anchor = '#deployments'  # next best anchor that does work
-            html_string = html_string.format(url=build_url+deployment_anchor, text=parent_obj)
-            return format_html(html_string)
-        elif isinstance(parent_obj,InventoryDeployment):
-            inv_url = reverse("inventory:inventory_detail", args=[parent_obj.inventory.pk])
-            html_string = html_string.format(url=inv_url, text=parent_obj)
-            return format_html(html_string)
-        elif isinstance(parent_obj,Part):
-            build_url = reverse("parts:parts_detail", args=[parent_obj.pk])
-            html_string = html_string.format(url=build_url, text=parent_obj)
-            return format_html(html_string)
-        elif isinstance(parent_obj,AssemblyPart):
-            assy_url = reverse("assemblies:assemblypart_detail", args=[parent_obj.pk])
-            html_string = html_string.format(url=assy_url, text=parent_obj)
-            return format_html(html_string)
-        else:
-            return ''
+    render_object = ActionTable.render_object
 
 
 # ========= FORM STUFF ========= #
@@ -207,10 +180,11 @@ class UserSearchForm(forms.Form):
 
 # ========= VIEWS ========= #
 
-class UserSearchView(LoginRequiredMixin, tables2.MultiTableMixin, TemplateView):
-    template_name = 'search/ReviewerApproverSearch.html'
+class UserSearchView(LoginRequiredMixin, MultiTableMixin, MultiExportMixin, TemplateView):
+    template_name = 'search/form_search_multitable.html'
     form_class = UserSearchForm
     table_pagination = {"per_page": 10}
+    export_name = 'user_{table}__{user}'
 
     tables = [ActionUserTable,
               CalibrationTable,
@@ -231,6 +205,7 @@ class UserSearchView(LoginRequiredMixin, tables2.MultiTableMixin, TemplateView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        context['model'] = 'User'
         for table in context['tables']:
             table.attrs['title'] = table.Meta.title if hasattr(table.Meta,'title') else table.__name__.replace('Table','s')
         return context
@@ -293,3 +268,13 @@ class UserSearchView(LoginRequiredMixin, tables2.MultiTableMixin, TemplateView):
         context = self.get_context_data()
         context['form'] = form
         return self.render_to_response(context)
+
+    def get_export_filename(self, export_format):
+        idx = self.request.GET.get(self.export_trigger_param_table)
+        user = self.request.GET.get('q',self.request.user.username)
+        table = self.get_tables()[int(idx)]
+        title = table.Meta.title
+        title = title.lower().replace(' ','_')
+
+        export_name = self.export_name.format(table=title,user=user)
+        return "{}.{}".format(export_name, export_format)

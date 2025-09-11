@@ -34,7 +34,7 @@ from .forms import *
 from roundabout.assemblies.models import Assembly, AssemblyPart, AssemblyRevision
 from roundabout.locations.models import Location
 from roundabout.inventory.models import Inventory, Action
-from roundabout.inventory.utils import _create_action_history
+from roundabout.inventory.utils import _create_action_history, logged_user_review_items
 from roundabout.admintools.models import Printer
 # Get the app label names from the core utility functions
 from roundabout.core.utils import set_app_labels
@@ -49,17 +49,20 @@ node_type = 'builds'
 def load_builds_navtree(request):
     node_id = request.GET.get('id')
 
+    reviewer_list = logged_user_review_items(request.user, 'inv')
+
     if node_id == '#' or not node_id:
         locations = Location.objects.prefetch_related('builds__assembly__assembly_parts__part__part_type') \
                     .prefetch_related('builds__inventory__part__part_type').prefetch_related('builds__deployments')
-        return render(request, 'builds/ajax_build_navtree.html', {'locations': locations})
+        return render(request, 'builds/ajax_build_navtree.html', {'locations': locations, 'reviewer_list': reviewer_list})
     else:
         build_pk = node_id.split('_')[1]
         build = Build.objects.prefetch_related('assembly_revision__assembly_parts').prefetch_related('inventory').get(id=build_pk)
         return render(request, 'builds/build_tree_assembly.html', {'assembly_parts': build.assembly_revision.assembly_parts,
                                                                    'inventory_qs': build.inventory,
                                                                    'location_pk': build.location_id,
-                                                                   'build_pk': build_pk, })
+                                                                   'build_pk': build_pk, 
+                                                                   'reviewer_list': reviewer_list})
 
 
 # Internal function to copy Inventory items for Build Snapshots
@@ -227,6 +230,13 @@ class BuildAjaxDetailView(LoginRequiredMixin, DetailView):
         bar_class = None
         bar_width = None
 
+        user_rev_deployment_events = False
+
+        latest_deployment = self.object.get_latest_deployment()
+        if self.request.user.reviewer_deployments.exists():
+            if latest_deployment in self.request.user.reviewer_deployments.all():
+                user_rev_deployment_events = True
+
         # Get Lat/Long, Depth if Deployed
         if self.object.is_deployed:
             current_deployment = self.object.current_deployment()
@@ -238,6 +248,7 @@ class BuildAjaxDetailView(LoginRequiredMixin, DetailView):
             'current_deployment': self.object.current_deployment(),
             'percent_complete': percent_complete,
             'action_record': action_record,
+            'user_rev_deployment_events': user_rev_deployment_events
         })
         return context
 
@@ -249,14 +260,40 @@ class BuildAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):
     context_object_name = 'build'
     template_name='builds/ajax_build_form.html'
 
-    def form_valid(self, form):
+    def get(self, request, *args, **kwargs):
+        self.object = None
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        link_formset = BuildHyperlinkFormset(instance=self.object)
+        return self.render_to_response(self.get_context_data(form=form, link_formset=link_formset))
+
+    def post(self, request, *args, **kwargs):
+        self.object = None
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        link_formset = BuildHyperlinkFormset(self.request.POST, instance=self.object)
+
+        if form.is_valid() and link_formset.is_valid():
+            return self.form_valid(form,link_formset)
+        return self.form_invalid(form,link_formset)
+
+
+    def form_valid(self, form, formset):
         self.object = form.save()
+
+        # Adding Build to hyperlink objects
+        for link_form in formset:
+            link = link_form.save(commit=False)
+            if link.text and link.url:
+                link.parent = self.object
+                link.save()
+
         # Call the function to create an Action history chain
         _create_action_history(self.object, Action.ADD, self.request.user)
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -267,6 +304,18 @@ class BuildAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):
             return JsonResponse(data)
         else:
             return response
+
+    def form_invalid(self, form, formset):
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            if not form.is_valid():
+                # show form errors before formset errors
+                return JsonResponse(form.errors, status=400)
+            else:
+                # only show formset errors if there are no form errors
+                # because it is unclear how to combine form and formset errors in a way that doesnt break project.js:handleFormError()
+                return JsonResponse(formset.errors, status=400, safe=False)
+        else:
+            return self.render_to_response(self.get_context_data(form=form, link_formset=formset))
 
     def get_success_url(self):
         return reverse('builds:ajax_builds_detail', args=(self.object.id,))
@@ -279,15 +328,44 @@ class BuildAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, UpdateView):
     context_object_name = 'build'
     template_name='builds/ajax_build_form.html'
 
-    def form_valid(self, form):
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        link_formset = BuildHyperlinkFormset(instance=self.object)
+        return self.render_to_response(self.get_context_data(form=form, link_formset=link_formset))
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        link_formset = BuildHyperlinkFormset(self.request.POST, instance=self.object)
+
+        if form.is_valid() and link_formset.is_valid():
+            return self.form_valid(form,link_formset)
+        return self.form_invalid(form,link_formset)
+
+
+    def form_valid(self, form, formset):
         self.object = form.save()
+
+        # Adding Build to hyperlink objects
+        for link_form in formset:
+            link = link_form.save(commit=False)
+            if link.text and link.url:
+                if link_form['DELETE'].data:
+                    link.delete()
+                else:
+                    link.parent = self.object
+                    link.save()
+
         # Create new Action record
         # Call the function to create an Action history chain
         _create_action_history(self.object, Action.UPDATE, self.request.user)
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -298,6 +376,18 @@ class BuildAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, UpdateView):
             return JsonResponse(data)
         else:
             return response
+
+    def form_invalid(self, form, formset):
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            if not form.is_valid():
+                # show form errors before formset errors
+                return JsonResponse(form.errors, status=400)
+            else:
+                # only show formset errors if there are no form errors
+                # because it is unclear how to combine form and formset errors in a way that doesnt break project.js:handleFormError()
+                return JsonResponse(formset.errors, status=400, safe=False)
+        else:
+            return self.render_to_response(self.get_context_data(form=form, link_formset=formset))
 
     def get_success_url(self):
         return reverse('builds:ajax_builds_detail', args=(self.object.id,))
@@ -319,6 +409,20 @@ class BuildAjaxActionView(BuildAjaxUpdateView):
 
         return form_class_name
 
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        return self.render_to_response(self.get_context_data(form=form))
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        if form.is_valid():
+            return self.form_valid(form)
+        self.form_invalid(form)
+
     def form_valid(self, form):
         action_type = self.kwargs['action_type']
         action_form = form.save()
@@ -338,7 +442,7 @@ class BuildAjaxActionView(BuildAjaxUpdateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -386,7 +490,7 @@ class BuildNoteAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -445,6 +549,18 @@ class BuildAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteVie
 
         return JsonResponse(data)
 
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.location.id,
+            'parent_type': 'locations',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+
+        return JsonResponse(data)
+
 
 # Create a new Snapshot copy of a Build
 class BuildAjaxSnapshotCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):
@@ -490,7 +606,7 @@ class BuildAjaxSnapshotCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView)
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",

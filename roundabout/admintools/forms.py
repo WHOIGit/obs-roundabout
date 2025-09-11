@@ -64,7 +64,7 @@ def validate_cal_file(self,cal_csv,ext_files):
                 try:
                     cal_name_item = CoefficientName.objects.get(
                         calibration_name = calibration_name,
-                        coeff_name_event =  inventory_item.part.coefficient_name_events.first()
+                        coeff_name_event =  inventory_item.part.part_confignameevents.first()
                     )
                 except:
                     raise ValidationError(
@@ -110,17 +110,68 @@ def validate_cal_file(self,cal_csv,ext_files):
                     )
 
 class ImportInventoryForm(forms.Form):
+    update_existing_inventory = forms.BooleanField(
+        label="Update Existing Inventory items",
+        required=False,
+        help_text="Update existing Inventory items with matching Serial Numbers",
+    )
     document = forms.FileField()
+
+    def clean_document(self):
+        document = self.files.getlist('document')
+        if document:
+            document = document[0]
+            document.seek(0)
+            reader = csv.DictReader(io.StringIO(document.read().decode('utf-8')))
+            headers = reader.fieldnames
+            required_fields = ['Serial Number', 'Part Number','Location']
+            for field in required_fields:
+                if not field in headers:
+                    raise ValidationError(
+                        _('File: %(filename)s, Required fields (Serial Number, Part Number, Location) are not found.'),
+                        params={'filename': document.name},
+                    )
+            for idx, row in enumerate(reader):
+                row_data = row.items()
+                for key, val in row_data:
+                    if key in required_fields:
+                        if not val:
+                            raise ValidationError(
+                                _('File: %(filename)s, Row %(row)s: A required field is blank'),
+                                params={ 'row': idx, 'filename': document.name},
+                            )
+                        else:
+                            if val.strip() == '':
+                                raise ValidationError(
+                                    _('File: %(filename)s, Row %(row)s: A required field is blank'),
+                                    params={ 'row': idx, 'filename': document.name},
+                                )
+            
+        else:
+            raise ValidationError(
+                _('No file specified'),
+            )
+        return document
+    
+class MultipleFileInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+class MultipleFileField(forms.FileField):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("widget", MultipleFileInput())
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        single_file_clean = super().clean
+        if isinstance(data, (list, tuple)):
+            result = [single_file_clean(d, initial) for d in data]
+        else:
+            result = [single_file_clean(data, initial)]
+        return result
 
 
 class ImportCalibrationForm(forms.Form):
-    cal_csv = forms.FileField(
-        widget=forms.ClearableFileInput(
-            attrs={
-                'multiple': True
-            }
-        )
-    )
+    cal_csv = MultipleFileField(required=False)
     user_draft = forms.ModelMultipleChoiceField(
         queryset = User.objects.all().exclude(groups__name__in=['inventory only']).order_by('username'),
         required=False,

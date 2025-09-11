@@ -18,7 +18,7 @@
 # along with ooicgsn-roundabout in the COPYING.md file at the project root.
 # If not, see <http://www.gnu.org/licenses/>.
 -->
-
+{% load parts_tags %}
     <ul>
         {% for part in parts %}
 
@@ -35,9 +35,19 @@
                     {% else %}
                         data-jstree='{"icon":"fa fa-cube"}'
                     {% endif %}
-                     id="parts_{{ part.id }}"><a href="#" data-detail-url="{% url 'parts:ajax_parts_detail' part.id %}"
+                     id="parts_{{ part.id }}">
+                     <a href="#" data-detail-url="{% url 'parts:ajax_parts_detail' part.id %}"
                         data-node-id="{{ part.id }}"
-                        data-node-type="parts">{{ part }}</a></li>
+                        data-node-type="parts">
+                        {{ part }}
+                        {% if part.id in reviewer_list %}
+                            <span id="review-badge-{{part.id}}" class="badge badge-pill badge-secondary">Review Requested</span>
+                        {% else %}
+                            <span id="review-badge-{{part.id}}" class="badge badge-pill badge-secondary" style = 'display: none;'>Review Requested</span>
+                        {% endif %}
+                        
+                    </a>
+                </li>
 
 
         {% endfor %}

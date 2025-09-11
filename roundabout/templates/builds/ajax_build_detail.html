@@ -228,6 +228,16 @@
                 <th>Total Time in Field</th>
                 <td>{{ build.time_at_sea|time_at_sea_display }}</td>
             </tr>
+            {% if build.hyperlinks.all %}
+            <tr>
+              <th>Links</th>
+                <td>
+                {% for link in build.hyperlinks.all %}
+                  <a target="_blank" href="{{ link.url }}">{{ link.text }} <i class="fas fa-link"></i></a><br>
+                {% endfor %}
+                </td>
+            </tr>
+           {% endif %}
         </tbody>
     </table>
 
@@ -251,7 +261,18 @@
                 class="btn btn-primary btn-sm"
                 role="button">Edit Deployment Details</a>
         </div>
-        <h5>Current {{ label_deployments_app_singular }} Data</h5>
+        <h5>
+            <span id = 'badge_tag-current'>Current {{ label_deployments_app_singular }} Data</span>
+            {% if user in current_deployment.user_draft.all %}
+                <span id="review-badge-current" class="badge badge-pill badge-secondary">Review Requested</span>
+            {% endif %}
+            {% if current_deployment.approved %}
+                <span id="approve-badge-current" class="badge badge-pill badge-success">Approved</span>
+            {% else %}
+                <span id="progress-badge-current" class="badge badge-pill badge-info">In Progress</span>
+            {% endif %}
+        </h5>
+        
         <h6>{{ label_deployments_app_singular }} Status</h6>
 
         <div class="progress mb-3" style="height: 20px;">
@@ -458,7 +479,7 @@
                             {% endif %}
 
                             {% if snapshot.time_at_sea %}
-                                <p>Total Time at Sea: {{ snapshot.time_at_sea|time_at_sea_display }}
+                                <p>Total Time in Field: {{ snapshot.time_at_sea|time_at_sea_display }}
                             {% endif %}
 
                             <h6>Snapshot Inventory:</h6>
@@ -523,7 +544,37 @@
 
 {% block javascript %}
 <script>
-    /* Need to set a global JS variable to reference build_id for navtree functions */
-    var buildID = 'builds_' + {{ build.id }};
+
+    $(document).ready(function() {
+        /* Need to set a global JS variable to reference build_id for navtree functions */
+        var buildID = 'builds_' + '{{ build.id }}';
+
+        var _buildID = '{{ build.id }}'
+        handleReviewBadges('#deployments', 'button[id^=deploy_expander]', '{{ user.id }}', '{{ user.username }}', _buildID)   
+
+        $('#jstree-navtree').on('loaded.jstree', function() {
+            // Open the tree to the selected item
+            
+            setTimeout(function() { // Adding a slight delay to ensure the node is open and rendered
+                var selectedItem = $('#jstree-navtree').find('.jstree-clicked')
+                console.log(selectedItem)
+                if (selectedItem.length) {
+                    var container = $('#jstree-navtree').parent();
+                    var selectedItemOffsetFromTop = selectedItem.offset().top;
+                    var containerScrollTop = container.scrollTop();
+                    var containerHeight = container.height();
+                    var selectedItemHeight = selectedItem.outerHeight(true); // Include margin
+    
+                    // Calculate the top scroll position to center the item
+                    var scrollTopToCenterItem = containerScrollTop + selectedItemOffsetFromTop - container.offset().top - (containerHeight / 2) + (selectedItemHeight / 2);
+                    
+                    container.animate({
+                        scrollTop: scrollTopToCenterItem
+                    }, 'slow');
+                }
+            }, 300); // Adjust delay as necessary
+        });     
+        
+    });
 </script>
 {% endblock javascript %}
