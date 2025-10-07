@@ -1,7 +1,7 @@
 <!--
 # Copyright (C) 2019-2020 Woods Hole Oceanographic Institution
 #
-# This file is part of the Roundabout Database project ("RDB" or 
+# This file is part of the Roundabout Database project ("RDB" or
 # "ooicgsn-roundabout").
 #
 # ooicgsn-roundabout is free software: you can redistribute it and/or modify
@@ -41,7 +41,7 @@
         <p>OOI Property Number: {{ inventory_item.ooi_property_number }}</p>
     {% endif %}
     <p>Part Number: {{ inventory_item.part.part_number }}</p>
-    <p>Revision: {{ inventory_item.part.revision }}</p>
+    <p>Revision: {{ inventory_item.part.revisions.latest }}</p>
     <p>Current Location: {{ inventory_item.location.name }}</p>
 
     {% if inventory_item.deployment %}
@@ -136,6 +136,29 @@
         $('.no-ajax-link').hide();
         $('.ajax-detail-link').show();
     }
+
+    $('#jstree-navtree').on('loaded.jstree', function() {
+        // Open the tree to the selected item
+        
+        setTimeout(function() { // Adding a slight delay to ensure the node is open and rendered
+            var selectedItem = $('#jstree-navtree').find('.jstree-clicked')
+            console.log(selectedItem)
+            if (selectedItem.length) {
+                var container = $('#jstree-navtree').parent();
+                var selectedItemOffsetFromTop = selectedItem.offset().top;
+                var containerScrollTop = container.scrollTop();
+                var containerHeight = container.height();
+                var selectedItemHeight = selectedItem.outerHeight(true); // Include margin
+
+                // Calculate the top scroll position to center the item
+                var scrollTopToCenterItem = containerScrollTop + selectedItemOffsetFromTop - container.offset().top - (containerHeight / 2) + (selectedItemHeight / 2);
+                
+                container.animate({
+                    scrollTop: scrollTopToCenterItem
+                }, 'slow');
+            }
+        }, 300); // Adjust delay as necessary
+    });
 
 </script>
 

@@ -20,6 +20,7 @@
 """
 from pprint import pprint
 from copy import deepcopy
+from django import forms
 from django.shortcuts import render, get_object_or_404
 from django.urls import reverse, reverse_lazy
 from django.http import HttpResponseRedirect, HttpResponse, JsonResponse
@@ -28,11 +29,14 @@ from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMix
 from django.db import transaction
 
 from .models import Assembly, AssemblyPart, AssemblyType, AssemblyDocument, AssemblyRevision
-from .forms import AssemblyForm, AssemblyPartForm, AssemblyTypeForm, AssemblyRevisionForm, AssemblyRevisionFormset, AssemblyDocumentationFormset, AssemblyTypeDeleteForm
+from .forms import AssemblyForm, AssemblyPartForm, AssemblyTypeForm, AssemblyRevisionForm, AssemblyRevisionFormset, AssemblyDocumentationFormset, AssemblyTypeDeleteForm, ReferenceDesignatorEventForm, ReferenceDesignatorForm, EventReferenceDesignatorFormset, EventReferenceDesignatorAddFormset
 from roundabout.parts.models import PartType, Part
 from roundabout.inventory.models import Action
-from roundabout.inventory.utils import _create_action_history
+from roundabout.inventory.utils import _create_action_history, logged_user_review_items
 from roundabout.configs_constants.models import ConfigDefaultEvent, ConfigDefault
+from roundabout.ooi_ci_tools.models import ReferenceDesignator, ReferenceDesignatorEvent
+from roundabout.calibrations.utils import handle_reviewers, user_ccc_reviews
+from roundabout.calibrations.tasks import check_events
 from common.util.mixins import AjaxFormMixin
 
 
@@ -57,8 +61,8 @@ def _make_revision_tree_copy(root_part, new_revision, parent=None, user=None, co
         order=root_part.order
     )
     # Copy ConfigDefaults for this Assembly Part
-    if copy_default_configs and root_part.config_default_events.exists():
-        for event in root_part.config_default_events.all():
+    if copy_default_configs and root_part.assemblypart_configdefaultevents.exists():
+        for event in root_part.assemblypart_configdefaultevents.all():
             new_event = ConfigDefaultEvent.objects.create(
                 assembly_part = new_ap,
                 created_at = event.created_at,
@@ -88,13 +92,15 @@ def _make_revision_tree_copy(root_part, new_revision, parent=None, user=None, co
 def load_assemblies_navtree(request):
     node_id = request.GET.get('id')
 
+    reviewer_list = logged_user_review_items(request.user,'assm')
+
     if node_id == '#' or not node_id:
         assembly_types = AssemblyType.objects.prefetch_related('assemblies__assembly_revisions')
-        return render(request, 'assemblies/ajax_assembly_navtree.html', {'assembly_types': assembly_types})
+        return render(request, 'assemblies/ajax_assembly_navtree.html', {'assembly_types': assembly_types, 'reviewer_list': reviewer_list})
     else:
         revision_pk = node_id.split('_')[1]
         revision_obj = AssemblyRevision.objects.prefetch_related('assembly_parts').get(id=revision_pk)
-        return render(request, 'assemblies/assembly_tree_parts.html', {'assembly_parts': revision_obj.assembly_parts})
+        return render(request, 'assemblies/assembly_tree_parts.html', {'assembly_parts': revision_obj.assembly_parts, 'reviewer_list': reviewer_list})
 
 
 # Function to load Parts based on Part Type filter
@@ -208,7 +214,7 @@ class AssemblyAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFo
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -221,13 +227,16 @@ class AssemblyAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFo
             return response
 
     def form_invalid(self, form, documentation_form):
-        form_errors = documentation_form.errors
-
-        if self.request.is_ajax():
-            data = form.errors
-            return JsonResponse(data, status=400)
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            if not form.is_valid():
+                # show form errors before formset errors
+                return JsonResponse(form.errors, status=400)
+            else:
+                # only show formset errors if there are no form errors
+                # because it is unclear how to combine form and formset errors in a way that doesnt break project.js:handleFormError()
+                return JsonResponse(documentation_form.errors, status=400, safe=False)
         else:
-            return self.render_to_response(self.get_context_data(form=form, revision_form=revision_form, documentation_form=documentation_form, form_errors=form_errors))
+            return self.render_to_response(self.get_context_data(form=form, documentation_form=documentation_form))
 
     def get_success_url(self):
         return reverse('assemblies:ajax_assemblies_detail', args=(self.object.id,))
@@ -275,7 +284,7 @@ class AssemblyAjaxCopyView(AssemblyAjaxCreateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -302,7 +311,7 @@ class AssemblyAjaxUpdateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFo
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -326,6 +335,17 @@ class AssemblyAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Delete
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.id,
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+
+        return JsonResponse(data)
+
+    def form_valid(self, form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",
@@ -460,7 +480,7 @@ class AssemblyRevisionAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -473,13 +493,16 @@ class AssemblyRevisionAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin
             return response
 
     def form_invalid(self, form, documentation_form):
-        form_errors = documentation_form.errors
-
-        if self.request.is_ajax():
-            data = form.errors
-            return JsonResponse(data, status=400)
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            if not form.is_valid():
+                # show form errors before formset errors
+                return JsonResponse(form.errors, status=400)
+            else:
+                # only show formset errors if there are no form errors
+                # because it is unclear how to combine form and formset errors in a way that doesnt break project.js:handleFormError()
+                return JsonResponse(documentation_form.errors, status=400, safe=False)
         else:
-            return self.render_to_response(self.get_context_data(form=form, documentation_form=documentation_form, form_errors=form_errors))
+            return self.render_to_response(self.get_context_data(form=form, documentation_form=documentation_form))
 
     def get_success_url(self):
         return reverse('assemblies:ajax_assemblyrevision_detail', args=(self.object.id,))
@@ -517,7 +540,7 @@ class AssemblyRevisionAjaxUpdateView(LoginRequiredMixin, PermissionRequiredMixin
         documentation_form.save()
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -530,13 +553,16 @@ class AssemblyRevisionAjaxUpdateView(LoginRequiredMixin, PermissionRequiredMixin
             return response
 
     def form_invalid(self, form, documentation_form):
-        form_errors = documentation_form.errors
-
-        if self.request.is_ajax():
-            data = form.errors
-            return JsonResponse(data, status=400)
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            if not form.is_valid():
+                # show form errors before formset errors
+                return JsonResponse(form.errors, status=400)
+            else:
+                # only show formset errors if there are no form errors
+                # because it is unclear how to combine form and formset errors in a way that doesnt break project.js:handleFormError()
+                return JsonResponse(documentation_form.errors, status=400, safe=False)
         else:
-            return self.render_to_response(self.get_context_data(form=form, documentation_form=documentation_form, form_errors=form_errors))
+            return self.render_to_response(self.get_context_data(form=form, documentation_form=documentation_form))
 
     def get_success_url(self):
         return reverse('assemblies:ajax_assemblyrevision_detail', args=(self.object.id,))
@@ -550,6 +576,17 @@ class AssemblyRevisionAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.id,
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+
+        return JsonResponse(data)
+
+    def form_valid(self, form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",
@@ -591,8 +628,8 @@ class AssemblyPartAjaxDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super(AssemblyPartAjaxDetailView, self).get_context_data(**kwargs)
         part_has_configs = False
-        if self.object.part.config_name_events.exists():
-            if self.object.part.config_name_events.first().config_names.filter(config_type='conf').exists():
+        if self.object.part.part_confignameevents.exists():
+            if self.object.part.part_confignameevents.first().config_names.filter(config_type='conf').exists():
                 part_has_configs = True
         context.update({
             'node_type': self.object.get_object_type(),
@@ -652,7 +689,7 @@ class AssemblyPartAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin, Aj
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -730,7 +767,7 @@ class AssemblyPartAjaxUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Aj
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -750,6 +787,28 @@ class AssemblyPartAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin, De
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+
+        # Need to check if there's Inventory on this AssemblyPart. If so, need to bump them off the Build
+        if self.object.inventory.exists():
+            for item in self.object.inventory.all():
+                item.detail = 'Removed from %s' % (item.build)
+                action_record = Action.objects.create(action_type='removefrombuild', detail=item.detail, location=item.location,
+                                                      user=self.request.user, inventory=item)
+                item.build = None
+                item.assembly_part = None
+                item.parent = None
+                item.save()
+
+        data = {
+            'message': "Successfully submitted form data.",
+            'object_type': self.object.get_object_type(),
+            'parent_id': self.object.parent_id,
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self, form):
         self.object = self.get_object()
 
         # Need to check if there's Inventory on this AssemblyPart. If so, need to bump them off the Build
@@ -867,3 +926,215 @@ class AssemblyTypeAjaxDetailView(LoginRequiredMixin, DetailView):
     context_object_name = 'assembly_type'
     template_name='assemblies/ajax_assembly_type_detail.html'
     redirect_field_name = 'home'
+
+
+
+# Handles creation of Reference Designators for AssemblyParts
+class EventReferenceDesignatorAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
+    model = ReferenceDesignatorEvent
+    form_class = ReferenceDesignatorEventForm
+    template_name='assemblies/event_referencedesignator_form.html'
+    permission_required = 'assemblies.add_referencedesignatorevent'
+
+    def get(self, request, *args, **kwargs):
+        self.object = None
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        form.fields['user_draft'].required = True
+        event_referencedesignator_form = ReferenceDesignatorForm()
+        return self.render_to_response(
+            self.get_context_data(
+                form=form,
+                event_referencedesignator_form=event_referencedesignator_form,
+                assm_part_id=self.kwargs['pk']
+            )
+        )
+
+    def post(self, request, *args, **kwargs):
+        self.object = None
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        event_referencedesignator_form = ReferenceDesignatorForm(self.request.POST)
+        if (form.is_valid() and event_referencedesignator_form.is_valid()):
+            return self.form_valid(form, event_referencedesignator_form)
+        return self.form_invalid(form, event_referencedesignator_form)
+
+    def form_valid(self, form, event_referencedesignator_form):
+        assm_obj = AssemblyPart.objects.get(id=self.kwargs['pk'])
+        form.instance.assembly_part = assm_obj
+        form.instance.approved = False
+        self.object = form.save()
+        selected_refdes = form.cleaned_data['reference_designator']
+        if selected_refdes is not None:
+            selected_refdes.refdes_events.add(self.object)
+            selected_refdes.save()
+        else:
+            event_referencedesignator_form.save()
+            event_referencedesignator_form.instance.refdes_events.add(self.object)
+            event_referencedesignator_form.save()
+        handle_reviewers(form.instance.user_draft, form.instance.user_approver, form.cleaned_data['user_draft'])
+        _create_action_history(self.object, Action.ADD, self.request.user)
+        response = HttpResponseRedirect(self.get_success_url())
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            data = {
+                'message': "Successfully submitted form data.",
+                'object_id': self.object.id,
+                'object_type': self.object.get_object_type(),
+                'detail_path': self.get_success_url(),
+            }
+            return JsonResponse(data)
+        else:
+            return response
+
+    def form_invalid(self, form, event_referencedesignator_form):
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            if form.errors:
+                data = form.errors
+                return JsonResponse(
+                    data,
+                    status=400,
+                    safe=False
+                )
+            if event_referencedesignator_form.errors:
+                data = event_referencedesignator_form.errors
+                return JsonResponse(
+                    data,
+                    status=400,
+                    safe=False
+                )
+        else:
+            return self.render_to_response(
+                self.get_context_data(
+                    form=form,
+                    event_referencedesignator_form=event_referencedesignator_form,
+                    form_errors=form_errors
+                )
+            )
+
+    def get_success_url(self):
+        return reverse('assemblies:ajax_assemblyparts_detail', args=(self.kwargs['pk'], ))
+
+
+# Handles updating of Reference Designators for AssemblyParts
+class EventReferenceDesignatorUpdate(LoginRequiredMixin, AjaxFormMixin, CreateView):
+    model = ReferenceDesignatorEvent
+    form_class = ReferenceDesignatorEventForm
+    context_object_name = 'event_template'
+    template_name='assemblies/event_referencedesignator_form.html'
+    permission_required = 'assemblies.add_referencedesignatorevent'
+    redirect_field_name = 'home'
+
+    def get(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        form.fields['user_draft'].required = False
+        form.fields['reference_designator'].widget = forms.HiddenInput()
+        event_referencedesignator_form = ReferenceDesignatorForm(
+            instance=self.object.reference_designator
+        )
+        return self.render_to_response(
+            self.get_context_data(
+                form=form,
+                event_referencedesignator_form=event_referencedesignator_form,
+                assm_part_id=self.object.assembly_part.id
+            )
+        )
+
+    def post(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        form_class = self.get_form_class()
+        form = self.get_form(form_class)
+        event_referencedesignator_form = ReferenceDesignatorForm(
+            self.request.POST,
+            instance=self.object.reference_designator
+        )
+        if (form.is_valid() and event_referencedesignator_form.is_valid()):
+            return self.form_valid(form, event_referencedesignator_form)
+        return self.form_invalid(form, event_referencedesignator_form)
+
+    def form_valid(self, form, event_referencedesignator_form):
+        form.instance.approved = False
+        handle_reviewers(form.instance.user_draft, form.instance.user_approver, form.cleaned_data['user_draft'])
+        self.object = form.save()
+        selected_refdes = form.cleaned_data['reference_designator']
+        if selected_refdes is not None:
+            if selected_refdes == self.object.reference_designator:
+                event_referencedesignator_form.save()
+        _create_action_history(self.object, Action.UPDATE, self.request.user)
+        for assm in self.object.reference_designator.assembly_parts.all():
+            _create_action_history(assm.assemblypart_referencedesignatorevents.first(), Action.UPDATE, self.request.user)
+        response = HttpResponseRedirect(self.get_success_url())
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            data = {
+                'message': "Successfully submitted form data.",
+                'object_id': self.object.id,
+                'object_type': self.object.get_object_type(),
+                'detail_path': self.get_success_url(),
+            }
+            return JsonResponse(data)
+        else:
+            return response
+
+    def form_invalid(self, form, event_referencedesignator_form):
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            if form.errors:
+                data = form.errors
+                return JsonResponse(
+                    data,
+                    status=400,
+                    safe=False
+                )
+            if event_referencedesignator_form.errors:
+                data = event_referencedesignator_form.errors
+                return JsonResponse(
+                    data,
+                    status=400,
+                    safe=False
+                )
+        else:
+            return self.render_to_response(
+                self.get_context_data(
+                    form=form,
+                    event_referencedesignator_form=event_referencedesignator_form,
+                    form_errors=form_errors
+                )
+            )
+
+    def get_success_url(self):
+        return reverse('assemblies:ajax_assemblyparts_detail', args=(self.object.assembly_part.id, ))
+
+
+
+# Reference Designator delete view
+class EventReferenceDesignatorDelete(LoginRequiredMixin, DeleteView):
+    model = ReferenceDesignatorEvent
+    context_object_name='refdes_obj'
+    template_name = 'assemblies/reference_designator_delete.html'
+    permission_required = 'assemblies.add_referencedesignatorevent'
+    redirect_field_name = 'home'
+
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.id,
+            'parent_type': 'comment',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self, form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.id,
+            'parent_type': 'comment',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def get_success_url(self):
+        return reverse_lazy('assemblies:ajax_assemblyparts_detail', args=(self.object.assembly_part.id, ))

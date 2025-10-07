@@ -67,3 +67,17 @@ def get_parts_children(pk, location_pk):
         return tree
 
     return descendants_by_location_tree(part, valid_parts)
+
+@register.simple_tag
+def logged_user_is_reviewer(part,logged_user):
+    if part.part_coefficientnameevents.exists():
+        if logged_user.reviewer_coefficientnameevents.exists():
+            found_events = part.part_coefficientnameevents.filter(user_draft__in=[logged_user])
+            if found_events:
+                return True
+    if part.part_confignameevents.exists():
+        if logged_user.reviewer_confignameevents.exists():
+            found_events = part.part_confignameevents.filter(user_draft__in=[logged_user])
+            if found_events:
+                return True
+    return False

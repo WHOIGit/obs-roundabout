@@ -48,6 +48,9 @@ from roundabout.inventory.models import (
     InventoryDeployment,
 )
 from roundabout.inventory.utils import _create_action_history
+from roundabout.inventory.views_tests import _reset_all_tests
+from roundabout.calibrations.utils import handle_reviewers
+from roundabout.configs_constants.models import ConfigEvent, ConfigName, ConfigDefault, ConfigValue
 
 # Get the app label names from the core utility functions
 from roundabout.core.utils import set_app_labels
@@ -90,13 +93,21 @@ class DeploymentAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):
         self.object.deployment_start_date = action_date
         self.object.save()
 
+        # Create Deployment Action record
+        data = dict(updated_values=dict())
+        for field in form.fields:
+            val = getattr(self.object, field, None)
+            if val:
+                data["updated_values"][field] = {"from": None, "to": str(val)}
+        # _create_action_history(self.object, Action.ADD, self.request.user, data=data)
+
         # Update the Build instance to match any Deployment changes
         build = self.object.build
         build.location = self.object.location
         build.is_deployed = True
         build.save()
         # Create Build Action record for deployment
-        _create_action_history(build, action_type, self.request.user)
+        _create_action_history(build, action_type, self.request.user, data=data)
 
         # Get all Inventory items on Build, match location and add Action
         inventory_items = build.inventory.all()
@@ -108,7 +119,7 @@ class DeploymentAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 "message": "Successfully submitted form data.",
@@ -157,39 +168,70 @@ class DeploymentAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, UpdateView):
 
         actions = obj_to_update.get_actions()
         actions = actions.filter(action_type__in=actions_list)
-
         for action in actions:
-            if action.action_type == Action.STARTDEPLOYMENT and obj_to_copy.deployment_start_date:
+            if (
+                action.action_type == Action.STARTDEPLOYMENT
+                and obj_to_copy.deployment_start_date
+            ):
                 action.created_at = obj_to_copy.deployment_start_date
 
-            if action.action_type == Action.DEPLOYMENTBURNIN and obj_to_copy.deployment_burnin_date:
+            if (
+                action.action_type == Action.DEPLOYMENTBURNIN
+                and obj_to_copy.deployment_burnin_date
+            ):
                 action.created_at = obj_to_copy.deployment_burnin_date
 
-            if action.action_type == Action.DEPLOYMENTTOFIELD and obj_to_copy.deployment_to_field_date:
+            if (
+                action.action_type == Action.DEPLOYMENTTOFIELD
+                and obj_to_copy.deployment_to_field_date
+            ):
                 action.created_at = obj_to_copy.deployment_to_field_date
 
-            if action.action_type == Action.DEPLOYMENTRECOVER and obj_to_copy.deployment_recovery_date:
+            if (
+                action.action_type == Action.DEPLOYMENTRECOVER
+                and obj_to_copy.deployment_recovery_date
+            ):
                 action.created_at = obj_to_copy.deployment_recovery_date
 
-            if action.action_type == Action.DEPLOYMENTRETIRE and obj_to_copy.deployment_retire_date:
+            if (
+                action.action_type == Action.DEPLOYMENTRETIRE
+                and obj_to_copy.deployment_retire_date
+            ):
                 action.created_at = obj_to_copy.deployment_retire_date
             action.save()
-            
         return actions
 
     def form_valid(self, form):
-        action_type = Action.DEPLOYMENTDETAILS
+
+        # Update Deployment Action Record
         previous_deployment = Deployment.objects.get(id=self.object.pk)
-        self.object = form.save()
+        new_deployment = form.save(commit=False)
+        data = dict(updated_values=dict())
+        for field in form.fields:
+            orig_val = getattr(previous_deployment, field, None)
+            new_val = getattr(new_deployment, field, None)
+            if orig_val != new_val:
+                data["updated_values"][field] = {
+                    "from": str(orig_val),
+                    "to": str(new_val),
+                }
+        form.instance.approved = False
+        self.object = form.save(commit=True)
+        handle_reviewers(
+            form.instance.user_draft,
+            form.instance.user_approver,
+            form.cleaned_data["user_draft"],
+        )
+        # _create_action_history(self.object, Action.UPDATE, self.request.user, data=data)
+
+        # Create Build Action record for deployment
         self.object.build.detail = "%s Details changed." % (
             self.object.deployment_number
         )
         self.object.build.save()
-        # Create Build Action record for deployment
+        action_type = Action.DEPLOYMENTDETAILS
         build_record = _create_action_history(
-            self.object.build,
-            action_type,
-            self.request.user,
+            self.object.build, action_type, self.request.user, data=data
         )
 
         # can only associate one cruise with an action, so for deployment detail change, only show changed cruise value
@@ -269,7 +311,7 @@ class DeploymentAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, UpdateView):
 
             inventory_deployment.save()
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 "message": "Successfully submitted form data.",
                 "object_id": self.object.build.id,
@@ -308,7 +350,22 @@ class DeploymentAjaxActionView(DeploymentAjaxUpdateView):
         return form_class_name
 
     def form_valid(self, form):
-        self.object = form.save()
+
+        # Update Deployment Action Record
+        previous_deployment = Deployment.objects.get(id=self.object.pk)
+        new_deployment = form.save(commit=False)
+        data = dict(updated_values=dict())
+        for field in form.fields:
+            orig_val = getattr(previous_deployment, field, None)
+            new_val = getattr(new_deployment, field, None)
+            if orig_val != new_val:
+                data["updated_values"][field] = {
+                    "from": str(orig_val),
+                    "to": str(new_val),
+                }
+        self.object = form.save(commit=True)
+        # _create_action_history(self.object, Action.UPDATE, self.request.user, data=data)
+
         action_type = self.kwargs["action_type"]
         action_date = form.cleaned_data["date"]
         # Set Detail and action_type variables
@@ -351,7 +408,7 @@ class DeploymentAjaxActionView(DeploymentAjaxUpdateView):
         build.save()
         # Create Build Action record for deployment
         build_record = _create_action_history(
-            build, action_type, self.request.user, None, "", action_date
+            build, action_type, self.request.user, None, "", action_date, data=data
         )
         build_record.cruise = (
             self.object.cruise_recovered or self.object.cruise_deployed
@@ -397,9 +454,42 @@ class DeploymentAjaxActionView(DeploymentAjaxUpdateView):
                 item, action_type, self.request.user, build, "", action_date
             )
 
+            # Auto reset all inventory tests here on Deployment Recovery
+            if action_type == Action.DEPLOYMENTRECOVER:
+                _reset_all_tests(
+                    item,
+                    self.request.user,
+                )
+            # generate inventory configevent with default values on deyployed to field
+            if action_type == Action.DEPLOYMENTTOFIELD:
+                if not item.inventory_configevents.exists():
+                    config_event, event_added = ConfigEvent.objects.get_or_create(
+                        inventory=item,
+                        config_type="conf",
+                        configuration_date = action_date,
+                        deployment = self.object
+                    )
+                    _create_action_history(config_event, Action.ADD, self.request.user, data={})
+                    if item.assembly_part is not None:
+                        if item.assembly_part.assemblypart_configdefaultevents.exists():
+                            conf_def_event = item.assembly_part.assemblypart_configdefaultevents.first()
+                            names = ConfigName.objects.filter(config_name_event = item.part.part_confignameevents.first(), config_type ='conf')
+                            for name in names:
+                                try:
+                                    default_value = ConfigDefault.objects.get(conf_def_event = conf_def_event, config_name = name).default_value
+                                except ConfigDefault.DoesNotExist:
+                                    default_value = None
+                                ConfigValue.objects.create(
+                                    config_event = config_event,
+                                    config_name = name,
+                                    config_value = default_value,
+                                )
+
+                    
+
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 "message": "Successfully submitted form data.",

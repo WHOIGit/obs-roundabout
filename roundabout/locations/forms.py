@@ -1,7 +1,7 @@
 """
 # Copyright (C) 2019-2020 Woods Hole Oceanographic Institution
 #
-# This file is part of the Roundabout Database project ("RDB" or 
+# This file is part of the Roundabout Database project ("RDB" or
 # "ooicgsn-roundabout").
 #
 # ooicgsn-roundabout is free software: you can redistribute it and/or modify
@@ -28,39 +28,42 @@ from mptt.forms import TreeNodeChoiceField
 from .models import Location
 
 
-
 class LocationForm(forms.ModelForm):
-
     class Meta:
         model = Location
-        fields = ['name', 'parent', 'location_type', 'location_id' ]
-        labels = {
-        'location_id': 'Location ID'
-    }
+        fields = ["name", "parent", "location_code"]
 
     def clean_parent(self):
         if self.instance:
             print(self.instance)
-            parent = self.cleaned_data['parent']
+            parent = self.cleaned_data["parent"]
             print(parent)
 
         if self.instance == parent:
-            raise ValidationError('Location Parent cannot be self')
+            raise ValidationError("Location Parent cannot be self")
         return parent
+
 
 """
 Custom Deletion form for Locations
 User needs to be able to choose a new Location for Inventory/Builds
 """
+
+
 class LocationDeleteForm(forms.Form):
-    new_location = TreeNodeChoiceField(label='Select new Location', queryset=Location.objects.all())
+    new_location = TreeNodeChoiceField(
+        label="Select new Location", queryset=Location.objects.all()
+    )
 
     def __init__(self, *args, **kwargs):
-        location_pk= kwargs.pop('pk')
+        location_pk = kwargs.pop("pk")
         location_to_delete = Location.objects.get(id=location_pk)
 
         super(LocationDeleteForm, self).__init__(*args, **kwargs)
         # Check if this Location has Inventory or Builds, remove new Location field if false
-        if not location_to_delete.inventory.exists() and not location_to_delete.builds.exists():
-            self.fields['new_location'].required = False
-            self.fields['new_location'].widget = forms.HiddenInput()
+        if (
+            not location_to_delete.inventory.exists()
+            and not location_to_delete.builds.exists()
+        ):
+            self.fields["new_location"].required = False
+            self.fields["new_location"].widget = forms.HiddenInput()

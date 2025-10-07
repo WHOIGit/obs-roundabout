@@ -25,16 +25,15 @@ from . import views
 
 app_name = 'ooi_ci_tools'
 urlpatterns = [
-    #Import Deployments
-    path('import/deployments/upload/', view=views.ImportDeploymentsUploadView.as_view(), name='import_deployments_upload'),
-    #Import Vessels
-    path('import/vessels/upload/', view=views.ImportVesselsUploadView.as_view(), name='import_vessels_upload'),
-    #Import Vessels
-    path('import/cruises/upload/', view=views.ImportCruisesUploadView.as_view(), name='import_cruises_upload'),
-    #Import Calibrations
-    #path('import/calibrations/upload/', view=views.ImportCalibrationsUploadView.as_view(), name='import_calibrations_upload'),
-    path('import/upload/success/', view=views.ImportUploadSuccessView.as_view(), name='import_upload_success'),
-    #Import Calibrations
     path('import/csv/upload/', view=views.import_csv, name='import_csv'),
     path('import/calibrations/status/', view=views.upload_status, name='upload_status'),
+    path('import/actions/comments/add/<int:pk>/', view=views.action_comment, name='action_comment_add'),
+    path('import/comments/comments/add/<int:pk>/<str:crud>/', view=views.sub_comment, name='sub_comment'),
+    path('import/comments/comments/delete/<int:pk>/', view=views.CommentDelete.as_view(), name='comment_comment_delete'),
+    path('configure_import/update/<int:pk>/', view=views.ImportConfigUpdate.as_view(), name='import_config_edit'),
+    path('bulkupload/inv_update/<int:pk>/<str:file>/<int:inv_id>', view=views.InvBulkUploadEventUpdate.as_view(), name='inv_bulkuploadevent_update'),
+    path('bulkupload/part_update/<int:pk>/<str:file>/<int:part_id>', view=views.PartBulkUploadEventUpdate.as_view(), name='part_bulkuploadevent_update'),
+    path('bulkupload/inv_delete/<int:pk>/<int:inv_id>', view=views.InvBulkUploadEventDelete.as_view(), name='inv_bulkuploadevent_delete'),
+    path('bulkupload/part_delete/<int:pk>/<int:part_id>', view=views.PartBulkUploadEventDelete.as_view(), name='part_bulkuploadevent_delete'),
+
 ]

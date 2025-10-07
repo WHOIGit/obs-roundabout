@@ -22,7 +22,7 @@
 from django import forms
 from django.contrib.auth import get_user_model, forms as auth_forms
 from django.core.exceptions import ValidationError
-from django.utils.translation import ugettext_lazy as _
+from django.utils.translation import gettext as _
 from django.contrib.auth.hashers import make_password, check_password
 
 from django.contrib.auth.models import Group
@@ -61,14 +61,18 @@ class UserAdminCreateForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ['username', 'password', 'name', 'email',  'groups', ]
-        labels = {
-            'groups': 'User Role'
-        }
+        fields = [
+            "username",
+            "password",
+            "name",
+            "email",
+            "groups",
+        ]
+        labels = {"groups": "User Role"}
 
         widgets = {
-            'groups': forms.CheckboxSelectMultiple(),
-            'password': forms.PasswordInput(),
+            "groups": forms.CheckboxSelectMultiple(),
+            "password": forms.PasswordInput(),
         }
 
 
@@ -77,12 +81,15 @@ class UserAdminUpdateForm(forms.ModelForm):
 
     class Meta:
         model = User
-        fields = ['username', 'name', 'email',  'groups', ]
-        labels = {
-            'groups': 'User Role'
-        }
+        fields = [
+            "username",
+            "name",
+            "email",
+            "groups",
+        ]
+        labels = {"groups": "User Role"}
 
         widgets = {
-            'groups': forms.CheckboxSelectMultiple(),
-            'password': forms.PasswordInput(),
+            "groups": forms.CheckboxSelectMultiple(),
+            "password": forms.PasswordInput(),
         }

@@ -72,7 +72,7 @@ def parse_cal_file(self, form, cal_csv, ext_files):
                 calibration_name = value.strip()
                 cal_name_item = CoefficientName.objects.get(
                     calibration_name=calibration_name,
-                    coeff_name_event=inventory_item.part.coefficient_name_events.first()
+                    coeff_name_event=inventory_item.part.part_confignameevents.first()
                 )
             elif key == 'value':
                 valset_keys = {'cal_dec_places': inventory_item.part.cal_dec_places}
@@ -162,6 +162,7 @@ class ImportInventoryUploadView(LoginRequiredMixin, FormView):
 
     def form_valid(self, form):
         csv_file = self.request.FILES['document']
+        update_existing_inventory = form.cleaned_data.get('update_existing_inventory')
         # Set up the Django file object for CSV DictReader
         csv_file.seek(0)
         reader = csv.DictReader(io.StringIO(csv_file.read().decode('utf-8')))
@@ -170,6 +171,8 @@ class ImportInventoryUploadView(LoginRequiredMixin, FormView):
 
         # Create or get parent TempImport object
         tempimport_obj, created = TempImport.objects.get_or_create(name=csv_file.name, column_headers=headers)
+        if update_existing_inventory:
+            tempimport_obj.update_existing_inventory = True
         # If already exists, reset all the related items
         if not created:
             tempimport_obj.tempimportitems.all().delete()
@@ -187,11 +190,18 @@ class ImportInventoryUploadView(LoginRequiredMixin, FormView):
                     except Inventory.DoesNotExist:
                         item = None
 
-                    if not item:
-                        data.append({'field_name': key, 'field_value': value.strip(), 'error': False})
+                    if update_existing_inventory:
+                        if item:
+                            data.append({'field_name': key, 'field_value': value.strip(), 'error': False})
+                        else:
+                            error_msg = "Matching Serial Number not found"
+                            data.append({'field_name': key, 'field_value': value.strip(), 'error': True, 'error_msg': error_msg})
                     else:
-                        data.append({'field_name': key, 'field_value': value.strip(),
-                                    'error': True, 'error_msg': error_msg})
+                        if not item:
+                            data.append({'field_name': key, 'field_value': value.strip(), 'error': False})
+                        else:
+                            data.append({'field_name': key, 'field_value': value.strip(),
+                                        'error': True, 'error_msg': error_msg})
 
                 elif key == 'Part Number':
                     # Check if Part template exists
@@ -221,14 +231,27 @@ class ImportInventoryUploadView(LoginRequiredMixin, FormView):
                         # get Location object out of queryset
                         location = locations.first()
 
-                    if location:
-                        data.append({'field_name': key, 'field_value': value.strip(), 'error': False})
+                    if update_existing_inventory:
+                        if location:
+                            data.append({'field_name': key, 'field_value': value.strip(), 'error': False})
+                            if item:
+                                if item.location != location and hasattr(item,'build'):
+                                    if item.build != None:
+                                        error_msg = "Bulk Import cannot change Locations of Deployed Inventory."
+                                        data.append({'field_name': key, 'field_value': value.strip(), 'error': True, 'warning': False, 'error_msg': error_msg})
+                                        
                     else:
-                        data.append({'field_name': key, 'field_value': value.strip(),
-                                    'error': True, 'error_msg': error_msg})
+                        if location:
+                            data.append({'field_name': key, 'field_value': value.strip(), 'error': False})
+                        else:
+                            data.append({'field_name': key, 'field_value': value.strip(),
+                                        'error': True, 'error_msg': error_msg})
 
                 elif key == 'Notes':
-                    data.append({'field_name': key, 'field_value': value.strip(), 'error': False})
+                    if value is not None:
+                        data.append({'field_name': key, 'field_value': value.strip(), 'error': False})
+                    else:
+                        data.append({'field_name': key, 'field_value': '', 'error': False})
 
                 # Now run through all the Custom Fields, validate type, add to JSON
                 else:
@@ -296,6 +319,7 @@ class ImportInventoryUploadView(LoginRequiredMixin, FormView):
             tempitem_obj = TempImportItem(data=data, tempimport=tempimport_obj)
             tempitem_obj.save()
             self.tempimport_obj = tempimport_obj
+            tempimport_obj.save()
 
         return super(ImportInventoryUploadView, self).form_valid(form)
 
@@ -345,6 +369,8 @@ class ImportInventoryUploadAddActionView(LoginRequiredMixin, RedirectView):
             for item_obj in tempimport_obj.tempimportitems.all():
                 inventory_obj = Inventory()
 
+                note_detail = None
+
                 for col in item_obj.data:
                     if col['field_name'] == 'Serial Number':
                         inventory_obj.serial_number = col['field_value']
@@ -359,13 +385,87 @@ class ImportInventoryUploadAddActionView(LoginRequiredMixin, RedirectView):
                     elif col['field_name'] == 'Notes':
                         note_detail = col['field_value']
 
-                inventory_obj.save()
+                inv_existing, inv_created = Inventory.objects.get_or_create(
+                    serial_number=inventory_obj.serial_number, 
+                    part=inventory_obj.part
+                )
+                
+                if inv_created:
+                    inv_existing.location = inventory_obj.location
+                    inv_existing.save()
+                else:
+                    #   If build, Remove from build
+					#   If deployed, end deployment
+				    #   Change location
+                    if tempimport_obj.update_existing_inventory:
+                        print('Update Existing Inventory')
+                        if inv_existing.location != inventory_obj.location:
+                            print('Change Location')
+                            if hasattr(inv_existing, 'build'):
+                                print('existing build')
+                                if inv_existing.build is not None:
+                                    print('get current deployment')
+                                    current_dep = inv_existing.build.current_deployment()
+                                    if current_dep:
+                                        print('build is deployed')
+                                        current_dep.deployment_recovery_date = datetime.datetime.now()
+                                        current_dep.deployment_retire_date = datetime.datetime.now()
+                                        recover_record = Action.objects.create(
+                                            action_type='deploymentrecover',
+                                            detail = "%s Recovered to: %s. " % (current_dep.deployment_number, current_dep.location),
+                                        )
+                                        retire_record = Action.objects.create(
+                                            action_type='deploymentretire',
+                                            detail = "%s Ended." % (current_dep.deployment_number),
+                                        )
+                                        build = inv_existing.build
+                                        build.detail = "%s Recovered to: %s. " % (current_dep.deployment_number, current_dep.location)
+                                        build.save()
+                                        build_recover = _create_action_history(build, 'deploymentrecover', self.request.user, None, "", datetime.datetime.now())
+                                        build.detail = "%s Ended." % (current_dep.deployment_number)
+                                        build.location = current_dep.location
+                                        build.is_deployed = False
+                                        build.save()
+                                        build_retire = _create_action_history(build, 'deploymentretire', self.request.user, None, "", datetime.datetime.now())
+                                        build_recover.cruise = current_dep.cruise_recovered or None
+                                        build_retire.cruise = current_dep.cruise_recovered or None
+                                        build_recover.save()
+                                        build_retire.save()
+                                        inv_existing.build = None
+                                        inv_existing.location = inventory_obj.location
+                                        inv_existing.save()
+                                        _create_action_history(inv_existing, 'locationchange', self.request.user, None, "", datetime.datetime.now())
+                                        print('inventory location changed')
+                                    else:
+                                        print('build is not deployed or no current deployed build')
+                                        inv_existing.build = None
+                                        inv_existing.location = inventory_obj.location
+                                        _create_action_history(inv_existing, 'locationchange', self.request.user, None, "", datetime.datetime.now())
+                                        inv_existing.save()
+                                        print('inventory location changed')
+                                else:
+                                    print('build is not deployed or no current deployed build')
+                                    inv_existing.build = None
+                                    inv_existing.location = inventory_obj.location
+                                    _create_action_history(inv_existing, 'locationchange', self.request.user, None, "", datetime.datetime.now())
+                                    inv_existing.save()
+                                    print('inventory location changed')
+
+                inventory_obj = inv_existing
                 # Create initial history record for item
-                action_record = Action.objects.create(action_type='invadd',
-                                                      detail='Item first added to Inventory by Bulk Import',
-                                                      location=location,
-                                                      user=self.request.user,
-                                                      inventory=inventory_obj)
+
+                if tempimport_obj.update_existing_inventory:
+                    action_record = Action.objects.create(action_type='invchange',
+                                                    detail='Inventory item updated by Bulk Import',
+                                                    location=inventory_obj.location,
+                                                    user=self.request.user,
+                                                    inventory=inventory_obj)
+                else:
+                    action_record = Action.objects.create(action_type='invadd',
+                                                    detail='Item first added to Inventory by Bulk Import',
+                                                    location=inventory_obj.location,
+                                                    user=self.request.user,
+                                                    inventory=inventory_obj)
 
                 # Create notes history record for item
                 if note_detail:
@@ -391,11 +491,15 @@ class ImportInventoryUploadAddActionView(LoginRequiredMixin, RedirectView):
                         # Create new value object
                         if col['field_value']:
                             if custom_field:
-                                fieldvalue = FieldValue.objects.create(field=custom_field,
-                                                                       field_value=col['field_value'],
-                                                                       inventory=inventory_obj,
-                                                                       is_current=True,
-                                                                       user=self.request.user)
+                                fieldvalue = FieldValue.objects.update_or_create(
+                                    field=custom_field,
+                                    inventory=inventory_obj,
+                                    is_current=True,
+                                    defaults = {
+                                        'field_value': col['field_value'],
+                                        'user': self.request.user,
+                                    }
+                                )
                             else:
                                 # Drop any fields that don't match a custom field into a History Note
                                 note_detail = col['field_name'] + ': ' + col['field_value']
@@ -417,18 +521,18 @@ class ImportInventoryUploadSuccessView(TemplateView):
 # Makes a copy of the Assembly Revision tree starting at "root_part",
 # move to new Revision, reparenting it to "parent"
 def _api_import_assembly_parts_tree(headers, root_part_url, new_revision, parent=None, importing_user=None):
-    params = {'expand': 'part,config_default_events.config_defaults,config_default_events.config_defaults.config_name,config_default_events.user_draft,config_default_events.user_approver,config_default_events.actions.user'}
+    params = {'expand': 'part,assemblypart_configdefaultevents.config_defaults,assemblypart_configdefaultevents.config_defaults.config_name,assemblypart_configdefaultevents.user_draft,assemblypart_configdefaultevents.user_approver,assemblypart_configdefaultevents.actions.user'}
     assembly_part_request = requests.get(root_part_url, params=params, headers=headers, verify=False)
     assembly_part_data = assembly_part_request.json()
     # Need to validate that the Part template exists before creating AssemblyPart
     try:
         part_obj = Part.objects.get(part_number=assembly_part_data['part']['part_number'])
 
-        if assembly_part_data['part']['config_name_events']:
+        if assembly_part_data['part']['part_confignameevents']:
             # Check if local Part has all current Config Names: ConfigNameEvent -> ConfigName(s)
             # First get existing Parts list of ConfigNames
             existing_config_names = []
-            config_events_qs = part_obj.config_name_events.all()
+            config_events_qs = part_obj.part_confignameevents.all()
 
             if config_events_qs:
                 for config_event in config_events_qs:
@@ -436,14 +540,14 @@ def _api_import_assembly_parts_tree(headers, root_part_url, new_revision, parent
                     existing_config_names = existing_config_names + config_names
 
             # Then check against the importing RDB instance's list of config names
-            params = {'expand': 'config_name_events.config_names,config_name_events.user_draft,config_name_events.user_approver,config_name_events.actions.user'}
+            params = {'expand': 'part_confignameevents.config_names,part_confignameevents.user_draft,part_confignameevents.user_approver,part_confignameevents.actions.user'}
             part_configs_request = requests.get(
                 assembly_part_data['part']['url'], params=params, headers=headers, verify=False)
             part_configs_data = part_configs_request.json()
 
-            if part_configs_data['config_name_events']:
+            if part_configs_data['part_confignameevents']:
                 importing_config_names = []
-                for config_event in part_configs_data['config_name_events']:
+                for config_event in part_configs_data['part_confignameevents']:
                     missing_config_names = [config_name for config_name in config_event['config_names']
                                             if config_name['name'] not in existing_config_names]
                     print(missing_config_names)
@@ -504,7 +608,7 @@ def _api_import_assembly_parts_tree(headers, root_part_url, new_revision, parent
                             )
 
     except Part.DoesNotExist:
-        params = {'expand': 'part_type,revisions.documentation,config_name_events.config_names,config_name_events.user_draft,config_name_events.user_approver,config_name_events.actions.user'}
+        params = {'expand': 'part_type,revisions.documentation,part_confignameevents.config_names,part_confignameevents.user_draft,part_confignameevents.user_approver,part_confignameevents.actions.user'}
         part_request = requests.get(assembly_part_data['part']['url'], params=params, headers=headers, verify=False)
         part_data = part_request.json()
 
@@ -543,8 +647,8 @@ def _api_import_assembly_parts_tree(headers, root_part_url, new_revision, parent
                 )
 
         # Import all existing ConfigEvents/ConfigName
-        if part_data['config_name_events']:
-            for config_event in part_data['config_name_events']:
+        if part_data['part_confignameevents']:
+            for config_event in part_data['part_confignameevents']:
                 config_event_obj = ConfigNameEvent.objects.create(
                     created_at=config_event['created_at'],
                     updated_at=config_event['updated_at'],
@@ -609,8 +713,8 @@ def _api_import_assembly_parts_tree(headers, root_part_url, new_revision, parent
     )
     print(assembly_part_obj)
     # Add all Config data for the Assembly Part
-    if assembly_part_data['config_default_events']:
-        for config_event in assembly_part_data['config_default_events']:
+    if assembly_part_data['assemblypart_configdefaultevents']:
+        for config_event in assembly_part_data['assemblypart_configdefaultevents']:
             config_event_obj = ConfigDefaultEvent.objects.create(
                 created_at=config_event['created_at'],
                 updated_at=config_event['updated_at'],

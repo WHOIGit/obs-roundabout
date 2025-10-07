@@ -24,6 +24,7 @@
 {% load humanize %}
 {% load parts_tags %}
 {% load common_tags %}
+{% load tags_templatetags %}
 
 <div class="card-header" data-object-id="{{ assembly_part.id }}"><h3>{{ assembly_part.part.name }}</h3></div>
 
@@ -45,15 +46,28 @@
                     data-node-type="{{ node_type }}">Edit Sub-{{ label_assemblies_app_singular }} Part Template</a>
 
                 {% if not user|has_group:"inventory only" %}
-                    {% if not assembly_part.config_default_events.exists and assembly_part.part.config_name_events.exists %}
+                    {% if not assembly_part.assemblypart_configdefaultevents.exists and assembly_part.part.part_confignameevents.exists %}
                         <a  id="add_configdefault_action"
                             class="dropdown-item"
                             href="#"
                             data-detail-url="{% url 'configs_constants:event_configdefault_add' assembly_part.id %}"
                             data-node-id="{{ assembly_part.id }}"
-                            data-node-type="config_default}">Add Configuration Defaults</a>
+                            data-node-type="{{ node_type }}">Add Configuration Defaults</a>
                     {% endif %}
                 {% endif %}
+                {% if not assembly_part.assemblypart_referencedesignatorevents.exists %}
+                    <a  id="add_configdefault_action"
+                        class="dropdown-item"
+                        href="#"
+                        data-detail-url="{% url 'assemblies:event_referencedesignator_add' assembly_part.id %}"
+                        data-node-id="{{ assembly_part.id }}"
+                        data-node-type="{{ node_type }}">Add Reference Designator</a>
+                {% endif %}
+                <a class="dropdown-item" href="#"
+                data-detail-url="{% url 'tags:ajax_tag_add' %}?a={{ assembly_part.id }}"
+                data-node-id="{{ assembly_part.id }}"
+                data-location-id="{{ inventory_item.location.id}}"
+                data-node-type="{{ node_type }}">Add {{ label_assemblies_app_singular }} Part Tag</a>
             </div>
         </div>
     </div>
@@ -61,7 +75,52 @@
 
         <p>Part Number: <a href="{% url 'parts:parts_detail' assembly_part.part.id %}">{{ assembly_part.part.part_number }}</a> </p>
         <p>Part Type: {{ assembly_part.part.part_type }}</p>
+
+        {% if assembly_part.inventory.exists %}
+        <div class="alert alert-warning" role="alert">
+            <p><b>NOTICE:</b>  This {{ label_assemblies_app_singular }} Part has existing {{ label_inventory_app_plural }} assigned to it.
+            If you delete this {{ label_assemblies_app_singular }} Part, the {{ label_inventory_app_singular }} will be removed from its 
+            assigned Build and marked as available in its current location. If you move this {{ label_assemblies_app_singular }} Part, the
+            {{ label_inventory_app_singular }} will be moved along with any subassemblies. 
+            If you want to create a new version of this {{ label_assemblies_app_singular }},
+            but keep existing {{ label_builds_app_plural }} unchanged, please create a
+            <span class="ajax-detail-link">
+                <a href="#"
+                data-detail-url="{% url 'assemblies:ajax_assemblies_create_revision' assembly_part.assembly_revision.assembly.id %}"
+                data-node-id="{{ assembly_part.id }}"
+                data-node-type="{{ assembly_part.get_object_type }}"><b>NEW REVISION</b></a>
+            </span> of this {{ label_assemblies_app_singular }}  instead.</p>
+            <h5>Current {{ label_inventory_app_plural }} for this {{ label_assemblies_app_singular }} Part</h5>
+
+            <ul class="list-group list-group-flush">
+    
+                {% for item in assembly_part.inventory.all %}
+    
+                    <li class="list-group-item">
+                        {{ label_inventory_app_singular }}: {{ item }}<br>
+                        Current Location: {{ item.location }}
+                        <a href="{% url 'inventory:inventory_detail' item.id %}" data-detail-url="{% url 'inventory:ajax_inventory_detail' item.id %}"
+                           data-node-id="{{ item.id }}"
+                           data-location-id="{{ item.location.id }}"
+                           data-node-type="{{ item.get_object_type }}"
+                           class="btn btn-primary btn-sm float-right"
+                           target="_blank"
+                           role="button">View</a>
+                    </li>
+    
+                {% endfor %}
+    
+            </ul>
+        </div>
+
+       
+
+    {% endif %}
+
         <p>Current Inventory: {{ assembly_part.part.get_part_inventory_count }}</p>
+        {% if assembly_part.assemblypart_referencedesignatorevents.exists %}
+            <p>Reference Designator: {{ assembly_part.reference_designator }} -- {{assembly_part.part.name}} -- {{assembly_part.assembly_revision}} -- {{assembly_part.inventory.build}} -- {{assembly_part.inventory.build.current_deployment}}</p>
+        {% endif %}
         <p></p>
     <hr>
         {% if assembly_part.parent.id %}
@@ -81,7 +140,7 @@
         {% if assembly_part.children.exists %}
             <li class="nav-item">
 
-                <a class="nav-link active show" id="subassemblies-tab" data-toggle="tab" href="#subassemblies" role="tab" aria-controls="subassemblies" aria-selected="false">Sub-{{ label_assemblies_app_plural }}</a>
+                <a class="nav-link" id="subassemblies-tab" data-toggle="tab" href="#subassemblies" role="tab" aria-controls="subassemblies" aria-selected="false">Sub-{{ label_assemblies_app_plural }}</a>
 
             </li>
         {% endif %}
@@ -94,6 +153,14 @@
             </li>
         {% endif %}
 
+        {% include "assemblies/reference_designator_detail.html" with assembly_part=assembly_part user=user nav_only='true' %}
+        {% include "configs_constants/config_default_detail.html" with assembly_part=assembly_part user=user part_has_configs=part_has_configs nav_only='true'%}
+
+        {% if assembly_part.tags.exists %}
+            <li class="nav-item">
+                <a class="nav-link" id="tags-tab" data-toggle="tab" href="#tags" role="tab" aria-controls="tags" aria-selected="false">Tags</a>
+            </li>
+        {% endif %}
 
 
     </ul>
@@ -102,7 +169,7 @@
 
         {% if assembly_part.children.exists %}
 
-            <div class="tab-pane fade active show" id="subassemblies" role="tabpanel" aria-labelledby="subassemblies-tab">
+            <div class="tab-pane fade" id="subassemblies" role="tabpanel" aria-labelledby="subassemblies-tab">
 
                       <ul class="list-group list-group-flush">
 
@@ -143,7 +210,37 @@
                 </ul>
             </div>
         {% endif %}
-        {% include "configs_constants/config_default_detail.html" with assembly_part=assembly_part user=user part_has_configs=part_has_configs %}
+
+        {% include "assemblies/reference_designator_detail.html" with assembly_part=assembly_part user=user body_only='true'%}
+        {% include "configs_constants/config_default_detail.html" with assembly_part=assembly_part user=user part_has_configs=part_has_configs body_only='true'%}
+
+        {% if assembly_part.tags.exists%}
+        <div class="tab-pane fade" id="tags" role="tabpanel" aria-labelledby="tags-tab">
+          <ul class="list-group">
+          {% for tag in assembly_part.tags.all %}
+            <li class="list-group-item">
+              {{ tag|render_tag }} - "<code>{{ tag.tooltip }}</code>"
+              <span class="float-right mr-2">
+
+                <a role="button" class="btn btn-danger btn-sm text-white" href="{% url 'tags:ajax_tag_delete' tag.id %}">
+                  <span class="fa fa-trash-alt"></span></a>
+
+              </span>
+            </li>
+          {% endfor %}
+{% comment %} for whatever reason this DOES NOT LOAD, even though it's the same as in the dropdown Add Tag button >:(
+            <li class="list-group-item">
+              <a class="btn btn-primary btn-sm text-white float-right mr-2"
+                 href="#"
+                 data-detail-url="{% url 'tags:ajax_tag_add' %}?a={{ assembly_part.id }}"
+                 data-node-id="{{ assembly_part.id }}"
+                 data-location-id="{{ assembly_part.inventory.location.id}}">
+                    Add New Tag <span class="fa fa-plus"></span></a>
+            </li>
+{% endcomment %}
+          </ul>
+        </div>
+        {% endif %}
 
     </div>
 
@@ -156,9 +253,39 @@
 </div>
 
 {% block javascript %}
-<script>
-    /* Need to set a global JS variable to reference assembly_id for navtree functions */
-    var assemblyID = 'assemblies_' + {{ assembly_part.assembly_revision.assembly.id }};
-    var assemblyRevisionID = 'assemblyrevisions_' + {{ assembly_part.assembly_revision.id }};
-</script>
+  <script>
+      /* Need to set a global JS variable to reference assembly_id for navtree functions */
+      var assemblyID = 'assemblies_' + {{ assembly_part.assembly_revision.assembly.id }};
+      var assemblyRevisionID = 'assemblyrevisions_' + {{ assembly_part.assembly_revision.id }};
+
+      {# Show first tab #}
+      $(document).ready(function() {
+        $('#inventory-tabs-nav a:first').tab('show')
+
+        $('#jstree-navtree').on('loaded.jstree', function() {
+            // Open the tree to the selected item
+            
+            setTimeout(function() { // Adding a slight delay to ensure the node is open and rendered
+                var selectedItem = $('#jstree-navtree').find('.jstree-clicked')
+                console.log(selectedItem)
+                if (selectedItem.length) {
+                    var container = $('#jstree-navtree').parent();
+                    var selectedItemOffsetFromTop = selectedItem.offset().top;
+                    var containerScrollTop = container.scrollTop();
+                    var containerHeight = container.height();
+                    var selectedItemHeight = selectedItem.outerHeight(true); // Include margin
+    
+                    // Calculate the top scroll position to center the item
+                    var scrollTopToCenterItem = containerScrollTop + selectedItemOffsetFromTop - container.offset().top - (containerHeight / 2) + (selectedItemHeight / 2);
+                    
+                    container.animate({
+                        scrollTop: scrollTopToCenterItem
+                    }, 'slow');
+                }
+            }, 300); // Adjust delay as necessary
+        });
+      });
+  </script>
+  {% include "configs_constants/config_default_detail.html" with js_only='true' %}
+  {% include "assemblies/reference_designator_detail.html" with js_only='true' %}
 {% endblock javascript %}

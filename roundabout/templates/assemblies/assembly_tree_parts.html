@@ -1,7 +1,7 @@
 <!--
 # Copyright (C) 2019-2020 Woods Hole Oceanographic Institution
 #
-# This file is part of the Roundabout Database project ("RDB" or 
+# This file is part of the Roundabout Database project ("RDB" or
 # "ooicgsn-roundabout").
 #
 # ooicgsn-roundabout is free software: you can redistribute it and/or modify
@@ -20,6 +20,8 @@
 -->
 
 {% load mptt_tags %}
+{% load parts_tags %}
+{% load tags_templatetags %}
 
 {% for assembly_part,structure in assembly_parts.all|tree_info %}
 
@@ -66,7 +68,21 @@
                {% endif %}
            {% endif %}
            ">
-                {% if assembly_part.part.friendly_name %} {{ assembly_part.part.friendly_name}} {% else %} {{ assembly_part.part.name }} {% endif %}</a>
+                {% if assembly_part.part.friendly_name %}
+                    {{ assembly_part.part.friendly_name}}
+                {% else %}
+                    {{ assembly_part.part.name }}
+                {% endif %}
+                {% if assembly_part.part.id in reviewer_list %}
+                    <span id="review-badge-{{assembly_part.part.id}}" class="badge badge-pill badge-secondary">Review Requested</span>
+                {% else %}
+                    <span id="review-badge-{{assembly_part.part.id}}" class="badge badge-pill badge-secondary" style = 'display: none;'>Review Requested</span>
+                {% endif %}
+
+                {# TAGS for AssemblyParts #}
+                {% for tag in assembly_part.tags.all %} {{ tag|render_tag }} {% endfor %}
+
+            </a>
 
      {% for level in structure.closed_levels %}</li></ul>{% endfor %}
 

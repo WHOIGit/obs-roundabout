@@ -55,6 +55,26 @@
         </div>
     </div>
 
+    <div class="modal fade" id="editWarnModal" tabindex="-1" role="dialog" aria-labelledby="editWarnModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editWarnModalLabel">New message</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <p>Warning: Editing Name metadata will affect downstream Event data.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button id = 'modal_disable' type="button" class="btn btn-primary">Disable additional warnings</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {% if latest_flag.detail %}
         <p>
             <strong>Why Flagged:</strong> {{ latest_flag.detail }}
@@ -79,6 +99,8 @@
                     <th>Type</th>
                     <th>Significant Figures</th>
                     <th>Deprecated</th>
+                    <th>Coefficient Threshold (low)</th>
+                    <th>Coefficient Threshold (high)</th>
                     <th>Delete</th>
                 </thead>
                 <tbody>
@@ -89,6 +111,8 @@
                         <td>{{ cal.id }} {{ cal.value_set_type }}</td>
                         <td>{{ cal.id }} {{ cal.sigfig_override }} <small class = 'form-text text-muted'>{{cal.sigfig_override.help_text}}</small></td>
                         <td>{{ cal.id }} {{ cal.deprecated }}</td>
+                        <td>{{ cal.id }} {{ cal.threshold_low }} <small class = 'form-text text-muted'>{{cal.threshold_low.help_text}}</small></td>
+                        <td>{{ cal.id }} {{ cal.threshold_high }} <small class = 'form-text text-muted'>{{cal.threshold_high.help_text}}</small></td>
                         <td>
                             {{cal.id}}  {{cal.DELETE}}
                             <button id = 'delete_button-{{forloop.counter}}' data-row_num='{{forloop.counter}}' type="button" class="btn btn-primary" data-toggle="modal" data-target="#warningModal" data-whatever="{{ event_template.coefficient_name }}">Delete</button>
@@ -149,12 +173,14 @@
 
         // Hide and mark row for deletion
         $('#modal_delete').on('click', function() {
-            let delete_field = global_row.find('input[id$=-DELETE]');
-            if (delete_field) {
-                delete_field.prop("checked", "checked");
+            if (global_row.length >= 1) {
+                let delete_field = global_row.find('[id$=-DELETE]')
+                if (delete_field) {
+                    delete_field.prop("checked", "checked");
+                }
+                global_row.hide();
+                $('#warningModal').modal('toggle');
             }
-            global_row.hide();
-            $('#warningModal').modal('toggle');
         });
 
         // Clone last table row, replace row numbers in id/name attributes of child tags, update total form count
@@ -191,6 +217,42 @@
         String.prototype.replaceAt = function(index, replacement) {
             return this.substr(0, index) + replacement + this.substr(index + replacement.length);
         }
+
+
+        $('#cal_name_table').on('change', 'input[name^=coefficient_names]', function(e) {
+            let select = $(this);
+            let row = select.parent().parent();
+            let conf_name = row.find('[name$=_name]');
+            let conf_type = row.find(':selected');
+            let last_row = $('.calibration-name-form tbody tr.formset-row:last');
+            if (row.index() == last_row.index()){
+                return 
+            }
+            $('#editWarnModalLabel').text(conf_type.text() + ': ' + conf_name.val());
+            $('#editWarnModal').modal('toggle');
+        });
+
+        $('#cal_name_table').on('change', 'select[name^=coefficient_names]', function(e) {
+            let select = $(this);
+            let row = select.parent().parent();
+            let conf_name = row.find('[name$=_name]');
+            let conf_type = row.find(':selected');
+            let last_row = $('.calibration-name-form tbody tr.formset-row:last');
+            if (row.index() == last_row.index()){
+                return 
+            }
+            $('#editWarnModalLabel').text(conf_type.text() + ': ' + conf_name.val());
+            $('#editWarnModal').modal('toggle');
+        });
+
+        // Hide and mark row for deletion
+        $('#modal_disable').on('click', function() {
+            $('#editWarnModal').modal('hide');
+            setTimeout(function() {
+                $('#editWarnModal').remove()
+            }, 1000);
+            
+        });
 
         
     });

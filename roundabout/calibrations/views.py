@@ -23,22 +23,32 @@ from django.shortcuts import render, redirect
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
 from django.contrib.auth.mixins import LoginRequiredMixin, PermissionRequiredMixin
 from django.views.generic import CreateView, UpdateView, DeleteView, DetailView
-from .models import CoefficientName, CalibrationEvent, CoefficientValueSet, CoefficientNameEvent
-from .forms import CalibrationEventForm, EventValueSetFormset, CoefficientValueForm, CoefficientValueSetForm, ValueSetValueFormset, CoefficientNameForm, PartCalNameFormset, CalPartCopyForm, CoefficientNameEventForm
-from common.util.mixins import AjaxFormMixin
-from django.urls import reverse, reverse_lazy
-from roundabout.parts.models import Part
-from roundabout.parts.forms import PartForm
-from roundabout.users.models import User
-from roundabout.inventory.models import Inventory, Action
-from roundabout.inventory.utils import _create_action_history
-from django.core import validators
-from sigfig import round
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 from django.forms.models import inlineformset_factory, BaseInlineFormSet
-from .utils import handle_reviewers
+from django.core import validators
+from django.urls import reverse, reverse_lazy
+from common.util.mixins import AjaxFormMixin
+from django.core.cache import cache
+
+from sigfig import round
+
+from .models import CoefficientName, CalibrationEvent, CoefficientValueSet, CoefficientNameEvent, CoefficientValue
+from .forms import CalibrationEventForm, EventValueSetFormset, CoefficientValueForm, CoefficientValueSetForm, ValueSetValueFormset, CoefficientNameForm, PartCalNameFormset, CalPartCopyForm, CoefficientNameEventForm, CalibrationEventHyperlinkFormset
+from .utils import handle_reviewers, user_ccc_reviews
 from .tasks import check_events
+
+from roundabout.parts.models import Part
+from roundabout.parts.forms import PartForm
+from roundabout.users.models import User
+from roundabout.configs_constants.models import ConfigEvent, ConfigNameEvent, ConstDefaultEvent, ConfigDefaultEvent
+from roundabout.inventory.models import Inventory, Action, Deployment
+from roundabout.inventory.utils import _create_action_history
+from roundabout.ooi_ci_tools.tasks import async_update_cal_thresholds
+from roundabout.ooi_ci_tools.models import CruiseEvent, ReferenceDesignatorEvent, BulkUploadEvent, VesselEvent
+
+
+
 
 # Handles creation of Calibration Events, Names,and Coefficients
 class EventValueSetAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
@@ -50,7 +60,7 @@ class EventValueSetAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
     def get(self, request, *args, **kwargs):
         self.object = None
         inv_inst = Inventory.objects.get(id=self.kwargs['pk'])
-        coeff_event = inv_inst.part.coefficient_name_events.first()
+        coeff_event = inv_inst.part.part_coefficientnameevents.first()
         cal_names = coeff_event.coefficient_names.exclude(deprecated=True)
         form_class = self.get_form_class()
         form = self.get_form(form_class)
@@ -69,10 +79,12 @@ class EventValueSetAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
         )
         for idx,name in enumerate(cal_names):
             event_valueset_form.forms[idx].initial = {'coefficient_name': name}
+        link_formset = CalibrationEventHyperlinkFormset(instance=self.object)
         return self.render_to_response(
             self.get_context_data(
                 form=form,
                 event_valueset_form=event_valueset_form,
+                link_formset = link_formset,
                 inv_id = self.kwargs['pk']
             )
         )
@@ -86,11 +98,12 @@ class EventValueSetAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
             instance=self.object,
             form_kwargs={'inv_id': self.kwargs['pk']}
         )
-        if (form.is_valid() and event_valueset_form.is_valid()):
-            return self.form_valid(form, event_valueset_form)
-        return self.form_invalid(form, event_valueset_form)
+        link_formset = CalibrationEventHyperlinkFormset(self.request.POST, instance=self.object)
+        if (form.is_valid() and event_valueset_form.is_valid() and link_formset.is_valid()):
+            return self.form_valid(form, event_valueset_form, link_formset)
+        return self.form_invalid(form, event_valueset_form, link_formset)
 
-    def form_valid(self, form, event_valueset_form):
+    def form_valid(self, form, event_valueset_form, link_formset):
         inv_inst = Inventory.objects.get(id=self.kwargs['pk'])
         form.instance.inventory = inv_inst
         form.save()
@@ -99,11 +112,37 @@ class EventValueSetAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
             for user in draft_users:
                 form.instance.user_draft.add(user)
         self.object = form.save()
+
         event_valueset_form.instance = self.object
-        event_valueset_form.save()
-        _create_action_history(self.object, Action.ADD, self.request.user)
+
+        # CalibrationEvent action history json data field
+        data = {}
+        updated_values = {}
+        updated_notes = {}
+        updated_CoefficientValueSets = event_valueset_form.save(commit=False)
+        # record value/note changes for action history json data field
+        for updated_CoefficientValueSet in updated_CoefficientValueSets:
+            updated_values[updated_CoefficientValueSet.coefficient_name.calibration_name] = {'from':None, 'to':updated_CoefficientValueSet.value_set}
+            updated_notes[updated_CoefficientValueSet.coefficient_name.calibration_name] = {'from':None, 'to':updated_CoefficientValueSet.notes}
+        if updated_values: data['updated_values'] = updated_values
+        if updated_notes:  data['updated_notes'] = updated_notes
+
+        # Commiting changes to db
+        event_valueset_form.save(commit=True)
+
+        # Adding ConfigEvent to hyperlink objects
+        for link_form in link_formset:
+            link = link_form.save(commit=False)
+            if link.text and link.url:
+                link.parent = self.object
+                link.save()
+
+        _create_action_history(self.object, Action.ADD, self.request.user, data=data)
+        job = check_events.delay()
+        cache.set('thrsh_evnt', self.object)
+        thrsh_job = async_update_cal_thresholds.delay()
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -114,20 +153,20 @@ class EventValueSetAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
         else:
             return response
 
-    def form_invalid(self, form, event_valueset_form):
-        if self.request.is_ajax():
-            if form.errors:
-                data = form.errors
-                return JsonResponse(data, status=400)
-            elif event_valueset_form.errors:
-                data = event_valueset_form.errors
-                return JsonResponse(data, status=400, safe=False)
+    def form_invalid(self, form, event_valueset_form, link_formset):
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            if not form.is_valid():
+                return JsonResponse(form.errors, status=400)
+            elif not event_valueset_form.is_valid():
+                return JsonResponse(event_valueset_form.errors, status=400, safe=False)
+            elif not link_formset.is_valid():
+                return JsonResponse(link_formset.errors, status=400, safe=False)
         else:
             return self.render_to_response(
                 self.get_context_data(
                     form=form,
                     event_valueset_form=event_valueset_form,
-                    form_errors=form_errors,
+                    link_formset = link_formset,
                     inv_id = self.kwargs['pk']
                 )
             )
@@ -153,10 +192,12 @@ class EventValueSetUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormM
             instance=self.object,
             form_kwargs={'inv_id': self.object.inventory.id}
         )
+        link_formset = CalibrationEventHyperlinkFormset(instance=self.object)
         return self.render_to_response(
             self.get_context_data(
                 form=form,
                 event_valueset_form=event_valueset_form,
+                link_formset=link_formset,
                 inv_id = self.object.inventory.id
             )
         )
@@ -170,21 +211,57 @@ class EventValueSetUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormM
             instance=self.object,
             form_kwargs={'inv_id': self.object.inventory.id}
         )
-        if (form.is_valid() and event_valueset_form.is_valid()):
-            return self.form_valid(form, event_valueset_form)
-        return self.form_invalid(form, event_valueset_form)
+        link_formset = CalibrationEventHyperlinkFormset(self.request.POST, instance=self.object)
+        if form.is_valid() and event_valueset_form.is_valid() and link_formset.is_valid():
+            return self.form_valid(form, event_valueset_form, link_formset)
+        return self.form_invalid(form, event_valueset_form, link_formset)
 
-    def form_valid(self, form, event_valueset_form):
+    def form_valid(self, form, event_valueset_form, link_formset):
         inv_inst = Inventory.objects.get(id=self.object.inventory.id)
         form.instance.inventory = inv_inst
         form.instance.approved = False
-        handle_reviewers(form)
+        handle_reviewers(form.instance.user_draft, form.instance.user_approver, form.cleaned_data['user_draft'])
+
         self.object = form.save()
+        orig_CoefficientValueSets = self.object.coefficient_value_sets.all()
         event_valueset_form.instance = self.object
-        event_valueset_form.save()
-        _create_action_history(self.object, Action.UPDATE, self.request.user)
+
+        # CalibrationEvent action history json data field
+        data = {}
+        updated_values = {}
+        updated_notes = {}
+        updated_CoefficientValueSets = event_valueset_form.save(commit=False)
+        # record value/note changes for action history json data field
+        for updated_CoefficientValueSet in updated_CoefficientValueSets:
+            orig_CoefficientValueSet = orig_CoefficientValueSets.get(coefficient_name__calibration_name=updated_CoefficientValueSet.coefficient_name.calibration_name)
+            if orig_CoefficientValueSet.value_set != updated_CoefficientValueSet.value_set:
+                updated_values[updated_CoefficientValueSet.coefficient_name.calibration_name] = {'from': orig_CoefficientValueSet.value_set,
+                                                                                                 'to':   updated_CoefficientValueSet.value_set}
+            if orig_CoefficientValueSet.notes != updated_CoefficientValueSet.notes:
+                updated_notes[updated_CoefficientValueSet.coefficient_name.calibration_name] = {'from': orig_CoefficientValueSet.notes,
+                                                                                                'to':   updated_CoefficientValueSet.notes}
+        if updated_values: data['updated_values'] = updated_values
+        if updated_notes:  data['updated_notes'] = updated_notes
+
+        # Commiting changes to db
+        event_valueset_form.save(commit=True)
+
+        # Adding CalEvent to hyperlink objects
+        for link_form in link_formset:
+            link = link_form.save(commit=False)
+            if link.text and link.url:
+                if link_form['DELETE'].data:
+                    link.delete()
+                else:
+                    link.parent = self.object
+                    link.save()
+
+        _create_action_history(self.object, Action.UPDATE, self.request.user, data=data)
+        cache.set('thrsh_evnt', self.object)
+        thrsh_job = async_update_cal_thresholds.delay()
+
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -195,27 +272,20 @@ class EventValueSetUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormM
         else:
             return response
 
-    def form_invalid(self, form, event_valueset_form):
-        if self.request.is_ajax():
-            if form.errors:
-                data = form.errors
-                return JsonResponse(
-                    data,
-                    status=400
-                )
-            if event_valueset_form.errors:
-                data = event_valueset_form.errors
-                return JsonResponse(
-                    data,
-                    status=400,
-                    safe=False
-                )
+    def form_invalid(self, form, event_valueset_form, link_formset):
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
+            if not form.is_valid():
+                return JsonResponse(form.errors, status=400)
+            elif not event_valueset_form.is_valid():
+                return JsonResponse(event_valueset_form.errors, status=400, safe=False)
+            elif not link_formset.is_valid():
+                return JsonResponse(link_formset.errors, status=400, safe=False)
         else:
             return self.render_to_response(
                 self.get_context_data(
                     form=form,
                     event_valueset_form=event_valueset_form,
-                    form_errors=form_errors,
+                    link_formset = link_formset,
                     inv_id = self.object.inventory.id
                 )
             )
@@ -232,15 +302,28 @@ class EventValueSetDelete(LoginRequiredMixin, PermissionRequiredMixin, DeleteVie
     permission_required = 'calibrations.add_calibrationevent'
     redirect_field_name = 'home'
 
-    def delete(self, request, *args, **kwargs):	
-        self.object = self.get_object()	
-        data = {	
-            'message': "Successfully submitted form data.",	
-            'parent_id': self.object.inventory.id,	
-            'parent_type': 'part_type',	
-            'object_type': self.object.get_object_type(),	
-        }	
-        self.object.delete()	
+    def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.inventory.id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        thrsh_job = async_update_cal_thresholds.delay()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.inventory.id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        thrsh_job = async_update_cal_thresholds.delay()
         return JsonResponse(data)
 
     def get_success_url(self):
@@ -253,7 +336,7 @@ def event_delete_view(request, pk):
     if request.method == "POST":
         evt.delete()
         return HttpResponseRedirect(reverse('inventory:ajax_inventory_detail', args=(inv_id,)))
-        
+
     return render(request, 'calibrations/event_delete.html', {
         "event_template": evt,
         'request': request
@@ -274,10 +357,16 @@ class ValueSetValueUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormM
         self.object = self.get_object()
         form_class = self.get_form_class()
         form = self.get_form(form_class)
+        coeff_val_list = self.kwargs['sel_ids']
         valueset_value_form = ValueSetValueFormset(
             instance=self.object,
-            form_kwargs={'valset_id': self.object.id}
+            form_kwargs={
+                'valset_id': self.object.id
+            },
         )
+        if coeff_val_list != 'none':
+            coeff_ids = [int(id) for id in coeff_val_list.split(',')]
+            valueset_value_form.queryset = CoefficientValue.objects.filter(coeff_value_set = self.object, id__in = coeff_ids)
         return self.render_to_response(
             self.get_context_data(
                 valueset_value_form=valueset_value_form
@@ -301,7 +390,7 @@ class ValueSetValueUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormM
         valueset_value_form.instance = self.object
         valueset_value_form.save()
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -313,7 +402,7 @@ class ValueSetValueUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormM
             return response
 
     def form_invalid(self, valueset_value_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if valueset_value_form.errors:
                 data = valueset_value_form.errors
                 return JsonResponse(
@@ -376,6 +465,8 @@ class EventCoeffNameAdd(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormMix
             self.request.POST,
             part_id = self.kwargs['pk']
         )
+        if len(self.request.POST['coefficient_names-0-calibration_name']) == 0 and len(self.request.POST['part_select']) == 0:
+            part_calname_form.forms[0].add_error('calibration_name', 'Name cannot be blank')
         if (form.is_valid() and part_calname_form.is_valid() and part_cal_copy_form.is_valid()):
             return self.form_valid(form, part_calname_form, part_cal_copy_form)
         return self.form_invalid(form, part_calname_form, part_cal_copy_form)
@@ -392,8 +483,9 @@ class EventCoeffNameAdd(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormMix
         part_calname_form.save()
         part_cal_copy_form.save()
         _create_action_history(self.object, Action.ADD, self.request.user)
+        job = check_events.delay()
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -405,7 +497,7 @@ class EventCoeffNameAdd(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormMix
             return response
 
     def form_invalid(self, form, part_calname_form, part_cal_copy_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -492,7 +584,7 @@ class EventCoeffNameUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxForm
         form.instance.part = self.object.part
         form.instance.approved = False
         form.save()
-        handle_reviewers(form)
+        handle_reviewers(form.instance.user_draft, form.instance.user_approver, form.cleaned_data['user_draft'])
         self.object = form.save()
         part_calname_form.instance = self.object
         part_calname_form.save()
@@ -500,7 +592,7 @@ class EventCoeffNameUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxForm
         _create_action_history(self.object, Action.UPDATE, self.request.user)
         job = check_events.delay()
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -512,7 +604,7 @@ class EventCoeffNameUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxForm
             return response
 
     def form_invalid(self, form, part_calname_form, part_cal_copy_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -568,39 +660,92 @@ class EventCoeffNameDelete(LoginRequiredMixin, PermissionRequiredMixin, DeleteVi
         job = check_events.delay()
         return JsonResponse(data)
 
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.part.id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        job = check_events.delay()
+        return JsonResponse(data)
+
     def get_success_url(self):
         return reverse_lazy('parts:ajax_part_detail', args=(self.object.part.id, ))
 
 
 # Swap reviewers to approvers
-def event_review_approve(request, pk, user_pk):
-    event = CalibrationEvent.objects.get(id=pk)
+def event_review_toggle(request, pk, user_pk, evt_type):
+    deployment = None
+    is_current_deployment = False
+    if evt_type == 'calibration_event':
+        event = CalibrationEvent.objects.get(id=pk)
+    if evt_type == 'config_event':
+        event = ConfigEvent.objects.get(id=pk)
+    if evt_type == 'coefficient_name_event':
+        event = CoefficientNameEvent.objects.get(id=pk)
+    if evt_type == 'config_name_event':
+        event = ConfigNameEvent.objects.get(id=pk)
+    if evt_type == 'constant_default_event':
+        event = ConstDefaultEvent.objects.get(id=pk)
+    if evt_type == 'config_default_event':
+        event = ConfigDefaultEvent.objects.get(id=pk)
+    if evt_type == 'deployment':
+        event = Deployment.objects.get(id=pk)
+        if event.build.current_deployment() == event:
+            is_current_deployment = True
+    if evt_type == 'reference_designator_event':
+        event = ReferenceDesignatorEvent.objects.get(id=pk)
+    if evt_type == 'bulk_upload_event':
+        event = BulkUploadEvent.objects.get(id=pk)
+    if evt_type == 'cruise_event':
+        event = CruiseEvent.objects.get(id=pk)
+    if evt_type == 'vessel_event':
+        event = VesselEvent.objects.get(id=pk)
     user = User.objects.get(id=user_pk)
     reviewers = event.user_draft.all()
-    if user in reviewers:
+    approvers = event.user_approver.all()
+    user_in = False
+    if user in approvers:
+        event.user_draft.add(user)
+        event.user_approver.remove(user)
+        user_in = 'approvers'
+        if evt_type == 'deployment':
+            _create_action_history(event.build, Action.REVIEWUNAPPROVE, user, dep_obj=event)
+        else:
+            _create_action_history(event, Action.REVIEWUNAPPROVE, user)
+    elif user in reviewers:
         event.user_draft.remove(user)
         event.user_approver.add(user)
-        _create_action_history(event, Action.REVIEWAPPROVE, user)
-    if len(event.user_draft.all()) == 0:
-        event.approved = True
-        _create_action_history(event, Action.EVENTAPPROVE, user)
+        user_in = 'reviewers'
+        if evt_type == 'deployment':
+            _create_action_history(event.build, Action.REVIEWAPPROVE, user, dep_obj=event)
+        else:
+            _create_action_history(event, Action.REVIEWAPPROVE, user)
+    if event.user_approver.exists():
+        if len(event.user_approver.all()) >= 2:
+            if evt_type == 'cruise_event':
+                if len(event.cruise.vessel.vessel_event.user_approver.all()) >= 2:
+                    event.approved = True
+                else:
+                    event.approved = False
+            else:       
+                event.approved = True
+            if evt_type == 'deployment':
+                _create_action_history(event.build, Action.EVENTAPPROVE, user, dep_obj=event)
+            else:
+                _create_action_history(event, Action.EVENTAPPROVE, user)
+        else:
+            event.approved = False
+            if evt_type == 'deployment':
+                _create_action_history(event.build, Action.EVENTUNAPPROVE, user, dep_obj=event)
+            else:
+                _create_action_history(event, Action.EVENTUNAPPROVE, user)
     event.save()
-    data = {'approved':event.approved}
+    all_reviewed = user_ccc_reviews(event, user, evt_type)
+    data = {'approved':event.approved, 'all_reviewed': all_reviewed, 'user_in': user_in, 'is_current_deployment': is_current_deployment}
     return JsonResponse(data)
 
 
-# Swap reviewers to approvers
-def event_coeffname_approve(request, pk, user_pk):
-    event = CoefficientNameEvent.objects.get(id=pk)
-    user = User.objects.get(id=user_pk)
-    reviewers = event.user_draft.all()
-    if user in reviewers:
-        event.user_draft.remove(user)
-        event.user_approver.add(user)
-        _create_action_history(event, Action.REVIEWAPPROVE, user)
-    if len(event.user_draft.all()) == 0:
-        event.approved = True
-        _create_action_history(event, Action.EVENTAPPROVE, user)
-    event.save()
-    data = {'approved':event.approved}
-    return JsonResponse(data)

@@ -1,43 +1,47 @@
-FROM ubuntu:18.04
-RUN apt-get update && apt-get install -y --no-install-recommends apt-utils
-RUN apt-get update
-RUN apt-get install curl -y && apt-get install npm -y
-# Tools for Circleci debugging
-RUN apt-get install iputils-ping -y && apt-get install net-tools -y
+FROM ubuntu:24.04
 
-RUN apt-get install -y wget && apt install -y unzip
+# Required for nodejs 15+
+WORKDIR /tests
 
-# At Circleci root dir
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        apt-utils \
+        wget \
+        unzip \
+        curl \
+        npm \
+        jq \
+        default-jre \
+        libxkbcommon0 \
+        libpangocairo-1.0 \
+        libxdamage1 \
+        libgbm1 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 COPY ./tests/*.bat /tests/
 COPY ./tests/*.js /tests/
 COPY ./tests/*.csv /tests/
+COPY ./tests/*.ext /tests/
 
-RUN curl -sL https://deb.nodesource.com/setup_12.x | bash -
-RUN apt-get install -y nodejs
-RUN npm install jsdom
-RUN npm install jquery
-RUN npm install jquery-csv
-RUN npm install unzipper
-RUN npm install node-fetch
+RUN npm install jsdom@19.0.0 jquery jquery-csv unzipper node-fetch@2.6.1 selenium-webdriver
 
-RUN npm install selenium-webdriver
+# Get Chrome for Testing - Chrome stable version
+RUN CHROME_URL=$(curl -s https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json | jq -r '.channels.Stable.downloads.chrome[] | select(.platform == "linux64") | .url') && \
+    curl -sSLf --retry 3 --output /tmp/chrome-linux64.zip "$CHROME_URL" && \
+    unzip /tmp/chrome-linux64.zip -d /opt && \
+    ln -s /opt/chrome-linux64/chrome /usr/local/bin/chrome && \
+    rm /tmp/chrome-linux64.zip
 
-RUN wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && apt install -y ./google-chrome-stable_current_amd64.deb              
-RUN wget https://chromedriver.storage.googleapis.com/88.0.4324.96/chromedriver_linux64.zip && unzip -o chromedriver_linux64.zip -d/usr/local/bin
+# Get Chromedriver for Testing - matching Chrome version
+RUN CHROMEDRIVER_URL=$(curl -s https://googlechromelabs.github.io/chrome-for-testing/last-known-good-versions-with-downloads.json | jq -r '.channels.Stable.downloads.chromedriver[] | select(.platform == "linux64") | .url') && \
+    curl -sSLf --retry 3 --output /tmp/chromedriver-linux64.zip "$CHROMEDRIVER_URL" && \
+    unzip -o /tmp/chromedriver-linux64.zip -d /tmp && \
+    rm -rf /tmp/chromedriver-linux64.zip && \
+    mv -f /tmp/chromedriver-linux64/chromedriver "/usr/local/bin/chromedriver" && \
+    chmod +x "/usr/local/bin/chromedriver"
 
-#RUN apt install -y firefox && apt install -y firefox-geckodriver
-
-RUN chmod +x /tests/RunAllTests-Chrome-Linux.bat
-RUN sed -i 's/\r//' /tests/RunAllTests-Chrome-Linux.bat
-
-RUN chmod +x /tests/Cleanup-Docker.bat
-RUN sed -i 's/\r//' /tests/Cleanup-Docker.bat
-
-RUN chmod +x /tests/Buildup-Docker.bat
-RUN sed -i 's/\r//' /tests/Buildup-Docker.bat
-
-#RUN chmod +x /tests/RunAllTests-Firefox-Linux.bat
-#RUN sed -i 's/\r//' /tests/RunAllTests-Firefox-Linux.bat
-
-WORKDIR /tests
-
+RUN chmod +x /tests/RunAllTests-Chrome-Linux.bat /tests/Cleanup-Docker.bat /tests/Buildup-Docker.bat && \
+    sed -i 's/\r//' /tests/*.bat

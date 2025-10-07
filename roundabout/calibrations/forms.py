@@ -19,7 +19,7 @@
 # If not, see <http://www.gnu.org/licenses/>.
 """
 
-from bootstrap_datepicker_plus import DatePickerInput
+from bootstrap_datepicker_plus.widgets import DatePickerInput
 from django import forms
 from django.core.exceptions import ValidationError
 from django.forms.models import inlineformset_factory
@@ -29,7 +29,8 @@ from sigfig import round
 from roundabout.inventory.models import Inventory
 from roundabout.parts.models import Part
 from roundabout.users.models import User
-from .models import CoefficientName, CoefficientValueSet, CalibrationEvent, CoefficientValue, CoefficientNameEvent
+from .models import CoefficientName, CoefficientValueSet, CalibrationEvent, CoefficientValue, CoefficientNameEvent, CalibrationEventHyperlink
+from .utils import reviewer_users
 
 
 # Event form
@@ -56,7 +57,7 @@ class CalibrationEventForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super(CalibrationEventForm, self).__init__(*args, **kwargs)
-        self.fields['user_draft'].queryset = User.objects.all().exclude(groups__name__in=['inventory only']).order_by('username')
+        self.fields['user_draft'].queryset = reviewer_users()
 
     def clean_user_draft(self):
         user_draft = self.cleaned_data.get('user_draft')
@@ -89,7 +90,7 @@ class CoefficientNameEventForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super(CoefficientNameEventForm, self).__init__(*args, **kwargs)
-        self.fields['user_draft'].queryset = User.objects.all().exclude(groups__name__in=['inventory only']).order_by('username')
+        self.fields['user_draft'].queryset = reviewer_users()
 
     def clean_user_draft(self):
         user_draft = self.cleaned_data.get('user_draft')
@@ -146,7 +147,7 @@ class CoefficientValueSetForm(forms.ModelForm):
         raw_set = self.cleaned_data.get('value_set')
         coefficient_name = self.cleaned_data.get('coefficient_name')
         try:
-            cal_obj = CoefficientName.objects.get(coeff_name_event = self.instance.part.coefficient_name_events.first(), calibration_name = coefficient_name)
+            cal_obj = CoefficientName.objects.get(coeff_name_event = self.instance.part.part_coefficientnameevents.first(), calibration_name = coefficient_name)
             set_type =  cal_obj.value_set_type
         except:
             raise ValidationError(
@@ -155,12 +156,12 @@ class CoefficientValueSetForm(forms.ModelForm):
         else:
             return validate_coeff_vals(self.instance, set_type, raw_set)
 
-    def save(self, commit = True):
+    def save(self, commit=True):
         value_set = super(CoefficientValueSetForm, self).save(commit = False)
         if commit:
             value_set.save()
             parse_valid_coeff_vals(value_set)
-            return value_set
+        return value_set
 
 
 # CalibrationName Form
@@ -168,12 +169,14 @@ class CoefficientValueSetForm(forms.ModelForm):
 class CoefficientNameForm(forms.ModelForm):
     class Meta:
         model = CoefficientName
-        fields = ['calibration_name', 'value_set_type', 'sigfig_override', 'deprecated']
+        fields = ['calibration_name', 'value_set_type', 'sigfig_override', 'deprecated', 'threshold_low','threshold_high']
         labels = {
             'calibration_name': 'Name',
             'value_set_type': 'Type',
             'sigfig_override': 'Significant Figures',
-            'deprecated': 'Deprecated'
+            'deprecated': 'Deprecated',
+            'threshold_low': 'Coefficient Threshold (Low)',
+            'threshold_high': 'Coefficient Threshold (High)'
         }
         widgets = {
             'deprecated': forms.CheckboxInput()
@@ -192,13 +195,35 @@ class CoefficientNameForm(forms.ModelForm):
     def clean_sigfig_override(self):
         raw_sigfig = self.cleaned_data.get('sigfig_override')
         try:
-            assert 0 <= raw_sigfig <= 20
+            assert 1 <= raw_sigfig <= 32
         except:
             raise ValidationError(
-                    _('Input must be between 0 and 20.')
+                    _('Input must be between 1 and 32.')
                 )
         else:
             return raw_sigfig
+
+    def clean_threshold_low(self):
+        threshold_low = self.cleaned_data.get('threshold_low')
+        try:
+            regular_val = round(threshold_low.strip(), notation = 'std', output_type=float)
+        except:
+            raise ValidationError(
+                    _('Input cannot be coerced into a number')
+                )
+        else:
+            return threshold_low
+
+    def clean_threshold_high(self):
+        threshold_high = self.cleaned_data.get('threshold_high')
+        try:
+            regular_val = round(threshold_high.strip(), notation = 'std', output_type=float)
+        except:
+            raise ValidationError(
+                    _('Input cannot be coerced into a number')
+                )
+        else:
+            return threshold_high
 
 
 # CoefficientValue form
@@ -260,7 +285,7 @@ class CalPartCopyForm(forms.Form):
     def __init__(self, *args, **kwargs):
         self.part_id = kwargs.pop('part_id')
         super(CalPartCopyForm, self).__init__(*args, **kwargs)
-        self.fields['part_select'].queryset = Part.objects.filter(part_type__ccc_toggle=True,coefficient_name_events__gt=0).exclude(id__in=str(self.part_id))
+        self.fields['part_select'].queryset = Part.objects.filter(part_type__ccc_toggle=True,part_coefficientnameevents__gt=0).exclude(id__in=str(self.part_id))
 
     def clean_part_select(self):
         part_select = self.cleaned_data.get('part_select')
@@ -288,12 +313,16 @@ EventValueSetFormset = inlineformset_factory(
     can_delete=True
 )
 
+CalibrationEventHyperlinkFormset = forms.models.inlineformset_factory(
+    CalibrationEvent, CalibrationEventHyperlink, fields=('text', 'url'), extra=1, can_delete=True)
+
+
 # Coefficient Name form instance generator for Parts
 PartCalNameFormset = inlineformset_factory(
     CoefficientNameEvent,
     CoefficientName,
     form=CoefficientNameForm,
-    fields=('calibration_name', 'value_set_type', 'sigfig_override', 'deprecated'),
+    fields=('calibration_name', 'value_set_type', 'sigfig_override', 'deprecated', 'threshold_low', 'threshold_high'),
     extra=1,
     can_delete=True
 )
@@ -309,8 +338,14 @@ ValueSetValueFormset = inlineformset_factory(
 )
 
 # Validator for 1-D, comma-separated Coefficient value arrays
-def validate_coeff_array(coeff_1d_array, valset_inst, val_set_index = 0, filename = '', cal_name = ''):
+def validate_coeff_array(coeff_1d_array, valset_inst, val_set_index = 0, filename = '', cal_name = '', threshold = None):
     error_row_index = val_set_index + 1
+    if threshold:
+        low = float(threshold.low)
+        high = float(threshold.high)
+    else:
+        low = float(-10000000000000000000000000000000)
+        high = float(10000000000000000000000000000000)
     for idx, val in enumerate(coeff_1d_array):
         val = val.strip()
         error_col_index = idx + 1
@@ -318,7 +353,7 @@ def validate_coeff_array(coeff_1d_array, valset_inst, val_set_index = 0, filenam
             rounded_coeff_val = round(val)
         except:
             raise ValidationError(
-                _('File: %(filename)s, Calibration Name: %(cal_name)s, Row: %(row)s, Column: %(column)s, %(value)s is an invalid Number. Please enter a valid Number (Digits + 1 optional decimal point).'),
+                _('File: %(filename)s, Calibration Name: %(cal_name)s, Row: %(row)s, Column: %(column)s, %(value)s is an invalid Number. Please enter a valid Number (Digits + 1 optional decimal point, commas to separate multiple values).'),
                 params={'row': error_row_index, 'value': val, 'column': error_col_index, 'filename': filename, 'cal_name': cal_name},
             )
         else:
@@ -340,13 +375,22 @@ def validate_coeff_array(coeff_1d_array, valset_inst, val_set_index = 0, filenam
                         params={'row': error_row_index, 'column': error_col_index, 'value': val, 'filename': filename, 'cal_name': cal_name},
                     )
                 else:
-                    continue
+                    try:
+                        std_val = round(val, format = 'std', output_type = float)
+                        assert low <= std_val <= high
+                    except:
+                        raise ValidationError(
+                            _('File: %(filename)s, Calibration Name: %(cal_name)s, Row: %(row)s, Column: %(column)s, %(value)s Coefficient value falls outside of threshold (%(low)s,%(high)s)'),
+                            params={'row': error_row_index, 'column': error_col_index, 'value': val, 'filename': filename, 'cal_name': cal_name, 'low': low, 'high': high},
+                        )
+                    else:
+                        continue
 
 
 # Validator for Coefficient values within a CoefficientValueSet
 # Checks for numeric-type, part-based decimal place limit, number of digits limit
 # Displays array index/value of invalid input
-def validate_coeff_vals(valset_inst, set_type, coeff_val_set, filename = '', cal_name = ''):
+def validate_coeff_vals(valset_inst, set_type, coeff_val_set, filename = '', cal_name = '', threshold = None):
     if set_type == 'sl':
         try:
             coeff_batch = coeff_val_set.split(',')
@@ -356,7 +400,7 @@ def validate_coeff_vals(valset_inst, set_type, coeff_val_set, filename = '', cal
                 _('More than 1 value associated with Single input type')
             )
         else:
-            validate_coeff_array(coeff_batch, valset_inst, 0, filename, cal_name)
+            validate_coeff_array(coeff_batch, valset_inst, 0, filename, cal_name, threshold)
             return coeff_val_set
 
     elif set_type == '1d':
@@ -367,7 +411,7 @@ def validate_coeff_vals(valset_inst, set_type, coeff_val_set, filename = '', cal
                 _('Unable to parse 1D array')
             )
         else:
-            validate_coeff_array(coeff_batch, valset_inst, 0, filename, cal_name)
+            validate_coeff_array(coeff_batch, valset_inst, 0, filename, cal_name, threshold)
             return coeff_val_set
 
     elif set_type == '2d':
@@ -380,7 +424,7 @@ def validate_coeff_vals(valset_inst, set_type, coeff_val_set, filename = '', cal
         else:
             for row_index, row_set in enumerate(coeff_2d_array):
                 coeff_1d_array = row_set.split(',')
-                validate_coeff_array(coeff_1d_array, valset_inst, row_index, filename, cal_name)
+                validate_coeff_array(coeff_1d_array, valset_inst, row_index, filename, cal_name, threshold)
     return coeff_val_set
 
 
@@ -448,9 +492,9 @@ def parse_valid_coeff_vals(value_set_instance):
 def copy_calibrations(to_id, from_id):
     to_part = Part.objects.get(id=to_id)
     from_part = Part.objects.get(id=from_id)
-    if from_part.coefficient_name_events.exists():
-        from_coeff_event = from_part.coefficient_name_events.first()
-        to_coeff_event = to_part.coefficient_name_events.first()
+    if from_part.part_coefficientnameevents.exists():
+        from_coeff_event = from_part.part_coefficientnameevents.first()
+        to_coeff_event = to_part.part_coefficientnameevents.first()
         for name in from_coeff_event.coefficient_names.all():
             CoefficientName.objects.create(
                 calibration_name = name.calibration_name,
@@ -463,12 +507,12 @@ def copy_calibrations(to_id, from_id):
 # Validator for Part Calibration Copy
 # When a Part is selected, from which to copy Calibration Names into another Part, the function checks if duplicate Names exist between the two Parts in question.
 def validate_part_select(to_part, from_part):
-    if to_part.coefficient_name_events.exists():
-        to_names = [name.calibration_name for name in to_part.coefficient_name_events.first().coefficient_names.all()]
+    if to_part.part_coefficientnameevents.exists():
+        to_names = [name.calibration_name for name in to_part.part_coefficientnameevents.first().coefficient_names.all()]
     else:
         to_names = []
-    if from_part.coefficient_name_events.exists():
-        from_names = [name.calibration_name for name in from_part.coefficient_name_events.first().coefficient_names.all()]
+    if from_part.part_coefficientnameevents.exists():
+        from_names = [name.calibration_name for name in from_part.part_coefficientnameevents.first().coefficient_names.all()]
     else:
         from_names = []
     try:
