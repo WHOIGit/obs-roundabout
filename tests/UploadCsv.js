@@ -52,7 +52,6 @@ var filename, filename_ext;
         password = "admin";
     }
     else {
-        //        await driver.get("https://ooi-cgrdb-staging.whoi.net/");
         await driver.get("https://rdb-testing.whoi.edu/");
         user = "jkoch";
         password = "Automatedtests";
@@ -110,6 +109,7 @@ var filename, filename_ext;
             await reviewer[2].click();
         }
         await driver.findElement(By.id("submit")).click()
+        await new Promise(r => setTimeout(r, 2000));
         // Wait for upload to Complete
         var bodyText;
         for (var j = 0; j < 5; j++) {
@@ -131,22 +131,27 @@ var filename, filename_ext;
             }
         }
 
+        console.log("Wait for all Cruises created.");
+        await new Promise(r => setTimeout(r, 30000));
+
         // If no import error, export the Cruise file
         if (erroridx == 0) {
 
            // Don't trust Import Complete has actually imported all the Cruises
-           await new Promise(r => setTimeout(r, 20000));
+           while ((await driver.findElements(By.id("navbarAdmintools"))).length == 0) {
+                await new Promise(r => setTimeout(r, 2000));
+                console.log("Wait 2 seconds for Bulk Download Tool.");
+           }
 
            // Export Cruises - CI Version
            await driver.findElement(By.id("navbarAdmintools")).click()
            await driver.findElement(By.linkText("Bulk Download Tool")).click()
-	   // CI download button associated with Cruises
+	       // CI download button associated with Cruises
            await driver.findElement(By.linkText("Export Cruises [CI]")).click()
 
            // Access Downloaded Cruise file
            if (myArgs[1] == 'headless') {
-               // Docker/Circleci puts file in the current dir
-               var rdb_cruise = process.cwd() + "//CruiseInformation.csv";
+               var rdb_cruise = "/root/Downloads/CruiseInformation.csv";
            }
            else {
                // Windows command line puts file in the User's default Downloads dir
@@ -161,7 +166,7 @@ var filename, filename_ext;
                await new Promise(r => setTimeout(r, 2000));
                console.log("Wait 2 seconds for File Download.");
            }
-           await new Promise(r => setTimeout(r, 20000));  //wait for file write to finish
+           console.log("Compare Uploaded & Exported Cruise files.");
 
            // Compare Uploaded & Exported Cruise files
            // read a line from upload file and find it in exported buffer to verify Cruise was created properly
@@ -190,16 +195,22 @@ var filename, filename_ext;
                // This is the only way to compare the double quotes in the notes field
                if (cruise_str[4].includes(",")) {
                     if (!(exported.includes(cruise_str[0]) && exported.includes(cruise_str[1])
-                       && exported.includes(cruise_str[2]) && exported.includes(cruise_str[3])))
+                       && exported.includes(cruise_str[2]) && exported.includes(cruise_str[3]))) {
                        console.log("Cruise Export Missing: " + cruise_str)
-                    if (!exported.includes(cruise_str[4]))
+                       //console.log(cruise_str[0], cruise_str[1], cruise_str[2], cruise_str[3]);
+                       }
+                    if (!exported.includes(cruise_str[4])) {
                        console.log("Cruise Export Missing: " + cruise_str[4])
+                       //console.log(cruise_str[4])
+                    }
                }
                else if (!exported.includes(cruise_str)) {
                    console.log("Cruise Export Missing: "+cruise_str)
+                   //console.log("entire string missing")
                }
            }
         }
+        fs.unlinkSync(rdb_cruise);
 
         // Import Vessel CSV - CI Version
         // My file has been modified from the asset mgmt. file - fix mara s. marian invalid char in mmsi field
@@ -219,7 +230,8 @@ var filename, filename_ext;
             var reviewer = await driver.findElements(By.xpath("//option[. = 'tech']"));
             await reviewer[3].click();
         }
-        await driver.findElement(By.id("submit")).click()
+        await driver.findElement(By.id("submit")).click();
+        await new Promise(r => setTimeout(r, 2000));
         // Wait for upload to Complete
         erroridx = 0;
         for (var j = 0; j < 5; j++) {
@@ -254,8 +266,7 @@ var filename, filename_ext;
 
            // Access Downloaded Vessel file
            if (myArgs[1] == 'headless') {
-               // Docker/Circleci puts file in the current dir
-               var rdb_vessel = process.cwd() + "//shiplist.csv";
+               var rdb_vessel = "/root/Downloads/shiplist.csv";
            }
            else {
                // Windows command line puts file in the User's default Downloads dir
@@ -305,7 +316,7 @@ var filename, filename_ext;
                } 
            }
         }
-
+        fs.unlinkSync(rdb_vessel);
 
         // Upload Calibration CSV with a single calibration and a 2D calibration
 	    // Test depends on Manufacturer Serial Number previously defined in Import Export Inventory
@@ -334,6 +345,7 @@ var filename, filename_ext;
             await reviewer[0].click();
         }
         await driver.findElement(By.id("submit")).click()
+        await new Promise(r => setTimeout(r, 2000));
 
         // Wait for upload to Complete
         var bodyText;
@@ -349,7 +361,10 @@ var filename, filename_ext;
             }
         }
         // Don't trust Import Complete has actually imported all the Calibrations
-        await new Promise(r => setTimeout(r, 20000));
+        while ((await driver.findElements(By.id("navbarAdmintools"))).length == 0) {
+            await new Promise(r => setTimeout(r, 2000));
+            console.log("Wait 2 seconds for Bulk Download2 Tool.");
+        }
 
         // Bulk Download Calibrations
         await driver.findElement(By.id("navbarAdmintools")).click()
@@ -361,11 +376,10 @@ var filename, filename_ext;
 
         // Access Downloaded Calibrations file
         if (myArgs[1] == 'headless') {
-            // Docker/Circleci puts file in the current dir
-            var rdb_calib = process.cwd() + "//CalibrationEvents.zip"
-            var rdb_path = process.cwd();
-            var rdb_unzip = process.cwd() + "//3604-00131-00001-20004__20160510.csv"
-            var rdb_ext = process.cwd() + "//3604-00131-00001-20004__20160510__scalib2.ext"
+            var rdb_calib = "/root/Downloads/CalibrationEvents.zip"
+            var rdb_path = "/root/Downloads";
+            var rdb_unzip = "/root/Downloads/3604-00131-00001-20004__20160510.csv"
+            var rdb_ext = "/root/Downloads/3604-00131-00001-20004__20160510__scalib2.ext"
         }
         else {
             // Windows command line puts file in the User's default Downloads dir
@@ -449,6 +463,7 @@ var filename, filename_ext;
             await reviewer[5].click();
         }
         await driver.findElement(By.id("submit")).click();
+        await new Promise(r => setTimeout(r, 2000));
         // Wait for upload to Complete
         erroridx = 0;
         for (var j = 0; j < 5; j++) {
@@ -520,6 +535,7 @@ var filename, filename_ext;
             await reviewer[4].click();
         }
         await driver.findElement(By.id("submit")).click();
+        await new Promise(r => setTimeout(r, 2000));
         // Wait for upload to Complete
         erroridx = 0;
         for (var j = 0; j < 5; j++) {
@@ -539,61 +555,6 @@ var filename, filename_ext;
                 console.log("Wait 2 seconds for Bulk Import.");
             }
         }
-
-        // If no import error
-        if (erroridx == 0) {
-            // Don't trust Import Complete has actually completed
-            await new Promise(r => setTimeout(r, 9000));
-
-            // Verify Reference Designator list created on an Assembly
-            await driver.findElement(By.id("navbarTemplates")).click();
-            await driver.findElement(By.linkText("Assemblies")).click();
-
-            await new Promise(r => setTimeout(r, 2000));
-            // Expand Assembly Tree and Navigate to GS Surface Mooring Inventory
-            var j = 1;
-            while (true) {
-                if (await driver.findElement(By.xpath("//div/div/ul/li[" + j + "]")).getText() == "Mooring") {
-                    await driver.findElement(By.xpath("//li[" + j + "]/i")).click();
-                    break;
-                }
-                j++;
-            }
-            await new Promise(r => setTimeout(r, 2000));
-            await driver.findElement(By.xpath("//li[" + j + "]/ul/li/i")).click();  // Gs surface mooring is only mooring
-            await new Promise(r => setTimeout(r, 2000));
-            //Expand Rev B
-            var j = 1;
-            while (true) {
-                if (await driver.findElement(By.xpath("//li/ul/li/ul/li[" + j + "]/a")).getText() == "Revision B") {
-                    await driver.findElement(By.xpath("//li/ul/li/ul/li[" + j + "]/i")).click();
-                    break;
-                }
-                j++;
-            } 
-            await new Promise(r => setTimeout(r, 1000));
-            await driver.findElement(By.linkText("ADCPS-J")).click();
-            await new Promise(r => setTimeout(r, 1000));
-            while ((await driver.findElements(By.id("action"))).length == 0) {
-                await new Promise(r => setTimeout(r, 2000));
-                console.log("Wait 2 seconds for Action.");
-            }
-            await driver.findElement(By.id("action")).click();
-            await new Promise(r => setTimeout(r, 1000));
-            await driver.findElement(By.linkText("Add Reference Designator")).click();
-            {
-                const dropdown = await driver.findElement(By.id("id_reference_designator"));
-                try {
-                    await dropdown.findElement(By.xpath("//option[. = 'CE01ISSM-MFC31-00-CPMENG000']")).click();
-                    console.log("Vocab.csv bulk upload successful.");
-                }
-                catch {
-                    // Report import error if one imported reference designator is not found in dropdown list
-                    console.log("Vocab.csv bulk upload failed - reference designator not found in list.");
-                }
-            }
-        }
-
 
         // Upload Sensor_bulk_load_asset_record.csv - will create a bulk upload file for the associated Inventory. 
         // Depends upon Inventory Serial Number = Asset UID field
@@ -617,6 +578,7 @@ var filename, filename_ext;
             await reviewer[5].click();
         }
         await driver.findElement(By.id("submit")).click();
+        await new Promise(r => setTimeout(r, 2000));
         // Wait for upload to Complete
         erroridx = 0;
         for (var j = 0; j < 5; j++) {
@@ -668,7 +630,7 @@ var filename, filename_ext;
             else {
                 console.log("Upload CSV failed: CGINS-ADCPS-19061 not found.");
             }
-        }
+        } 
         
 
         // Upload CP04OSSM_Deploy.csv - will create a Build.
@@ -693,6 +655,7 @@ var filename, filename_ext;
             await reviewer[1].click();
         }
         await driver.findElement(By.id("submit")).click();
+        await new Promise(r => setTimeout(r, 2000));
         // Wait for upload to Complete
         erroridx = 0;
         for (var j = 0; j < 5; j++) {
@@ -718,7 +681,7 @@ var filename, filename_ext;
             // Don't trust Import Complete has actually completed
             await new Promise(r => setTimeout(r, 9000));
 
-            // Verify bulk upload file created for the Part
+            // Verify bulk upload file created for the build
             await driver.findElement(By.id("navbarTemplates")).click();
             await driver.findElement(By.linkText("Builds")).click();
             await driver.findElement(By.id("searchbar-query")).click();
@@ -737,13 +700,127 @@ var filename, filename_ext;
                 bodyText = await driver.findElement(By.css('body')).getText();
                 if ((bodyText.includes("Coastal Pioneer") && bodyText.includes("MAUI"))) {
                     console.log("CP04OSSM_Deploy.csv bulk upload successful.");
+                    erroridx = 0;
                 }
                 else {
                     console.log("CP04OSSM_Deploy.csv bulk upload failed.");
+                    erroridx = 1;
                 }
             }
             else {
                 console.log("Upload CSV failed.: CP04OSSM-Historical 00011 not found.");
+                erroridx = 1;
+            }
+        }
+
+        // If no import error, export the Deployment file
+        if (erroridx == 0) {
+            // Don't trust Import Complete has actually imported all
+            await new Promise(r => setTimeout(r, 20000));
+
+            // Export Deployments
+            await driver.findElement(By.id("navbarAdmintools")).click();
+            await driver.findElement(By.linkText("Bulk Download Tool")).click();
+            await driver.findElement(By.linkText("Export Deployments")).click();
+
+            // Access Downloaded file
+            if (myArgs[1] == 'headless') {
+                // Docker puts file in the current dir
+                var rdb_deploy = "/root/Downloads/Deployments.zip";
+                var rdb_path = "/root/Downloads";
+                var rdb_unzip = "/root/Downloads/GS_Surface_Mooring_Deploy.csv"
+            }
+            else {
+                // Windows command line puts file in the User's default Downloads dir
+                const execSync = require('child_process').execSync;
+                var username = execSync('echo %username%', { encoding: 'utf-8' });
+                username = username.replace(/[\n\r]+/g, '');
+                var rdb_deploy = "C:\\Users\\" + username + "\\Downloads\\Deployments.zip";
+                var rdb_path = "C:\\Users\\" + username + "\\Downloads";
+                var rdb_unzip = "C:\\Users\\" + username + "\\Downloads\\GS_Surface_Mooring_Deploy.csv";
+            }
+
+            var index = 0;
+            while (!fs.existsSync(rdb_deploy)) // wait for file download
+            {
+                await new Promise(r => setTimeout(r, 2000));
+                console.log("Wait 2 seconds for File Download.");
+                index++;
+                if (index > 10)
+                {
+                    console.log("Error: Deployment download file not found");                    
+                    break;
+                }
+            }
+
+            if (index <= 10) {
+                await new Promise(r => setTimeout(r, 20000));
+
+                // Unzip file
+                const unzipper = require('unzipper');
+
+                // await and promise required to work
+                await fs.createReadStream(rdb_deploy).pipe(unzipper.Extract({ path: rdb_path })).promise();
+
+                while (!fs.existsSync(rdb_unzip)) // wait for file extract
+                {
+                    await new Promise(r => setTimeout(r, 2000));
+                    console.log("Wait 2 seconds for File Extract.");
+                }
+
+                // Compare Uploaded & Exported files
+                var upload = fs.readFileSync(filename, 'utf8');
+                var exported = fs.readFileSync(rdb_unzip, 'utf8');
+
+                var uploaded_data = $.csv.toArrays(upload);
+                var exported_data = $.csv.toArrays(exported);
+
+                var single_str = uploaded_data[1];
+                for (var j = 0, lth = single_str.length; j < lth; j++) {
+                    if (!(exported.includes(single_str[j]))) {
+                        console.log("Warning: Deployment Export Missing -  " + single_str[j]);
+                        break;
+                    }
+                }
+            }
+
+            // Verify Reference Designator created on Assembly
+            await new Promise(r => setTimeout(r, 2000));
+            await driver.findElement(By.id("navbarTemplates")).click();
+            await driver.findElement(By.linkText("Assemblies")).click();
+
+            await new Promise(r => setTimeout(r, 2000));
+            // Expand Assembly Tree and Navigate to GS Surface Mooring Inventory
+            var j = 1;
+            while (true) {
+                if (await driver.findElement(By.xpath("//div/div/ul/li[" + j + "]")).getText() == "Mooring") {
+                    await driver.findElement(By.xpath("//li[" + j + "]/i")).click();
+                    break;
+                }
+                j++;
+            }
+            await new Promise(r => setTimeout(r, 2000));
+            await driver.findElement(By.xpath("//li[" + j + "]/ul/li/i")).click();  // Gs surface mooring is only mooring
+            await new Promise(r => setTimeout(r, 2000));
+            //Expand Rev B
+            var j = 1;
+            while (true) {
+                if (await driver.findElement(By.xpath("//li/ul/li/ul/li[" + j + "]/a")).getText() == "Revision B") {
+                    await driver.findElement(By.xpath("//li/ul/li/ul/li[" + j + "]/i")).click();
+                    break;
+                }
+                j++;
+            } 
+            await new Promise(r => setTimeout(r, 2000));
+            await driver.findElement(By.partialLinkText("ADCPS-J")).click();
+            await new Promise(r => setTimeout(r, 2000));
+            
+            bodyText = await driver.findElement(By.css('body')).getText();
+            if (bodyText.includes("CP04OSSM-MFD35")) {
+                console.log("Vocab.csv bulk upload successful - reference designator found.");
+            }
+            else {
+                console.log("Vocab.csv bulk upload failed - reference designator not found.");
             }
         }
 

@@ -181,7 +181,7 @@ class DeploymentAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, CreateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 "message": "Successfully submitted form data.",
@@ -368,7 +368,7 @@ class DeploymentAjaxUpdateView(LoginRequiredMixin, AjaxFormMixin, UpdateView):
 
             inventory_deployment.save()
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 "message": "Successfully submitted form data.",
                 "object_id": self.object.build.id,
@@ -548,7 +548,7 @@ class DeploymentAjaxActionView(DeploymentAjaxUpdateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 "message": "Successfully submitted form data.",

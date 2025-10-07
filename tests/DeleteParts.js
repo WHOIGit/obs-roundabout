@@ -222,6 +222,7 @@ var password;
             }
             await driver.findElement(By.css("tr:nth-child(" + i + ") .btn-danger")).click();
             await driver.findElement(By.css(".btn-danger")).click();
+            await new Promise(r => setTimeout(r, 2000));
         }
         else
             console.log("Delete Parts failed: Computerized type not found");

@@ -175,7 +175,7 @@ class ConfigEventValueAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
 
         _create_action_history(self.object, Action.ADD, self.request.user, data=data)
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -187,7 +187,7 @@ class ConfigEventValueAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
             return response
 
     def form_invalid(self, form, config_event_value_form, link_formset):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if not form.is_valid():
                 return JsonResponse(form.errors, status=400)
             elif not config_event_value_form.is_valid():
@@ -291,7 +291,7 @@ class ConfigEventValueUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFo
 
         _create_action_history(self.object, Action.UPDATE, self.request.user, data=data)
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -303,7 +303,7 @@ class ConfigEventValueUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFo
             return response
 
     def form_invalid(self, form, config_event_value_form, link_formset):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if not form.is_valid():
                 return JsonResponse(form.errors, status=400)
             elif not config_event_value_form.is_valid():
@@ -332,6 +332,17 @@ class ConfigEventValueDelete(LoginRequiredMixin, PermissionRequiredMixin, Delete
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.inventory.id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",
@@ -412,7 +423,7 @@ class EventConfigNameAdd(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormMi
         part_conf_copy_form.save()
         _create_action_history(self.object, Action.ADD, self.request.user)
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -424,7 +435,7 @@ class EventConfigNameAdd(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormMi
             return response
 
     def form_invalid(self, form, part_confname_form, part_conf_copy_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -523,7 +534,7 @@ class EventConfigNameUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFor
         _create_action_history(self.object, Action.UPDATE, self.request.user)
         job = check_events.delay()
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -535,7 +546,7 @@ class EventConfigNameUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFor
             return response
 
     def form_invalid(self, form, part_confname_form, part_conf_copy_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -579,6 +590,18 @@ class EventConfigNameDelete(LoginRequiredMixin, PermissionRequiredMixin, DeleteV
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.part.id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        job = check_events.delay()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",
@@ -655,7 +678,7 @@ class EventDefaultAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
         event_default_form.save()
         _create_action_history(self.object, Action.ADD, self.request.user)
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -667,7 +690,7 @@ class EventDefaultAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
             return response
 
     def form_invalid(self, form, event_default_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -761,7 +784,7 @@ class EventDefaultUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormMi
         event_default_form.save()
         _create_action_history(self.object, Action.UPDATE, self.request.user)
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -773,7 +796,7 @@ class EventDefaultUpdate(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormMi
             return response
 
     def form_invalid(self, form, event_default_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -810,6 +833,17 @@ class EventDefaultDelete(LoginRequiredMixin, PermissionRequiredMixin, DeleteView
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.inventory.id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",
@@ -885,7 +919,7 @@ class EventConfigDefaultAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
         event_default_form.save()
         _create_action_history(self.object, Action.ADD, self.request.user)
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -897,7 +931,7 @@ class EventConfigDefaultAdd(LoginRequiredMixin, AjaxFormMixin, CreateView):
             return response
 
     def form_invalid(self, form, event_default_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -991,7 +1025,7 @@ class EventConfigDefaultUpdate(LoginRequiredMixin, AjaxFormMixin, CreateView):
         event_default_form.save()
         _create_action_history(self.object, Action.UPDATE, self.request.user)
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -1003,7 +1037,7 @@ class EventConfigDefaultUpdate(LoginRequiredMixin, AjaxFormMixin, CreateView):
             return response
 
     def form_invalid(self, form, event_default_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -1040,6 +1074,17 @@ class EventConfigDefaultDelete(LoginRequiredMixin, PermissionRequiredMixin, Dele
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.assembly_part.id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",

@@ -269,7 +269,7 @@ class PartsAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormM
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -282,7 +282,7 @@ class PartsAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormM
             return response
 
     def form_invalid(self, form, revision_form, documentation_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(data, status=400)
@@ -320,7 +320,7 @@ class PartsAjaxUpdateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormM
         self.object = form.save()
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -333,7 +333,7 @@ class PartsAjaxUpdateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFormM
             return response
 
     def form_invalid(self, form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(data, status=400)
@@ -352,6 +352,17 @@ class PartsAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin, DeleteVie
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.part_type_id,
+            'parent_type': 'part_type',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+    
+    def form_valid(self, form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",
@@ -420,7 +431,7 @@ class PartsAjaxCreateRevisionView(LoginRequiredMixin, PermissionRequiredMixin, A
         documentation_form.save()
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -435,7 +446,7 @@ class PartsAjaxCreateRevisionView(LoginRequiredMixin, PermissionRequiredMixin, A
     def form_invalid(self, form, documentation_form):
         form_errors = documentation_form.errors
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = form.errors
             return JsonResponse(data, status=400)
         else:
@@ -478,7 +489,7 @@ class PartsAjaxUpdateRevisionView(LoginRequiredMixin, PermissionRequiredMixin, A
         documentation_form.save()
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -493,7 +504,7 @@ class PartsAjaxUpdateRevisionView(LoginRequiredMixin, PermissionRequiredMixin, A
     def form_invalid(self, form, documentation_form):
         form_errors = documentation_form.errors
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = form.errors
             return JsonResponse(data, status=400)
         else:
@@ -511,6 +522,17 @@ class PartsAjaxDeleteRevisionView(LoginRequiredMixin, PermissionRequiredMixin, D
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.part.id,
+            'parent_type': self.object.part.get_object_type(),
+            'object_type': self.object.part.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",
@@ -555,7 +577,7 @@ class PartsAjaxAddUdfFieldUpdateView(LoginRequiredMixin, PermissionRequiredMixin
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -568,7 +590,7 @@ class PartsAjaxAddUdfFieldUpdateView(LoginRequiredMixin, PermissionRequiredMixin
             return response
 
     def form_invalid(self, form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = form.errors
             return JsonResponse(data, status=400)
         else:
@@ -646,7 +668,7 @@ class PartsAjaxSetUdfFieldValueFormView(LoginRequiredMixin, PermissionRequiredMi
                 fieldvalue = FieldValue.objects.create(field_id=field_id, field_value=field_value,
                                                    inventory=item, is_current=True, user=self.request.user)
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -657,7 +679,7 @@ class PartsAjaxSetUdfFieldValueFormView(LoginRequiredMixin, PermissionRequiredMi
             return JsonResponse(data)
 
     def form_invalid(self, form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = form.errors
             return JsonResponse(data, status=400)
         else:

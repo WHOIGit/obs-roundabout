@@ -80,11 +80,12 @@ var password;
         await driver.findElement(By.id("id_login")).sendKeys(user);
         await driver.findElement(By.id("id_password")).sendKeys(password);
         await driver.findElement(By.css(".primaryAction")).click();
+        await new Promise(r => setTimeout(r, 2000));
 
         // DELETE ASSEMBLIES TEST
 
         // Searches for and deletes the Assemblies added during the Add and Update Assemblies Test
-        while ((await driver.findElements(By.id("searchbar-query"))).length == 0) // 1.6
+        while ((await driver.findElements(By.id("searchbar-query"))).length == 0)
         {
             await new Promise(r => setTimeout(r, 2000));
             console.log("Wait 2 seconds for Search.");
@@ -224,6 +225,7 @@ var password;
         await driver.findElement(By.id("navbarTemplates")).click();
         await driver.findElement(By.id("navbarAdmintools")).click();
         await driver.findElement(By.linkText("Edit Assembly Types")).click();
+        await new Promise(r => setTimeout(r, 2000));
 
         if ((await driver.findElements(By.xpath("//tr[*]/td[text()='Electric']"))).length != 0) {
             var i = 1;
@@ -234,7 +236,9 @@ var password;
                 i++;
             }
             await driver.findElement(By.css("tr:nth-child(" + i + ") .btn-danger")).click();
+            await new Promise(r => setTimeout(r, 2000));
             await driver.findElement(By.css(".btn-danger")).click();
+            await new Promise(r => setTimeout(r, 2000));
         }
         else
             console.log("Delete Assemblies failed: Electric type not found");

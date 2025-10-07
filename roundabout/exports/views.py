@@ -41,7 +41,7 @@ from roundabout.calibrations.models import CalibrationEvent
 from roundabout.configs_constants.models import ConfigEvent, ConfigValue, ConfigName
 from roundabout.cruises.models import Cruise, Vessel
 from roundabout.inventory.models import Inventory, Deployment, InventoryDeployment
-from roundabout.ooi_ci_tools.models import ReferenceDesignatorEvent
+from roundabout.ooi_ci_tools.models import ReferenceDesignator, ReferenceDesignatorEvent
 from roundabout.userdefinedfields.models import FieldValue
 from roundabout.assemblies.models import Assembly
 
@@ -765,6 +765,105 @@ class ExportVessels(CSVExport):
                 row.append(str(val))
             csv.writerow(row)
 
+# Reference Designators CSV
+class ExportReferenceDesignators(CSVExport):
+    model = ReferenceDesignator
+    fname = "refdes.csv"
+    ordering = ["refdes_name"]
+    # see https://github.com/oceanobservatories/asset-management/tree/master/vocab
+    header_att = [
+        ("Reference_Designator", "refdes_name"),
+        ("TOC_L1", "toc_l1"),
+        ("TOC_L2", "toc_l2"),
+        ("TOC_L3", "toc_l3"),
+        ("Instrument", "instrument"),
+        ("Manufacturer", "manufacturer"),
+        ("Model", "model"),
+        ("Min Depth", "min_depth"),
+        ("Max Depth", "max_depth")
+    ]
+
+    @classmethod
+    def build_csv(cls, csv, objs, CI_mode=False):
+        header_att = cls.header_att.copy()
+        
+        headers, attribs = zip(*header_att)
+        csv.writerow(headers)
+        for refdes in objs:
+            row = []
+            for att in attribs:
+                val = getattr(refdes, att, None)
+                if val is None:
+                    val = ""
+                row.append(str(val))
+            csv.writerow(row)
+
+# Inventory Bulk CSV
+class ExportInventory(CSVExport):
+    model = Inventory
+    fname = "Inventory.csv"
+    # see https://github.com/oceanobservatories/asset-management/tree/master/bulk
+    header_att = [
+        ("ASSET_UID", "serial_number"),  # Inventory
+        ("LEGACY_ASSET_UID", "old_serial_number"), # not populated
+        ("TYPE", ""),
+        ("Mobile", ""),
+        ("DESCRIPTION OF EQUIPMENT", ""),
+        ("MIO_Inventory_Description", ""),
+        ("Manufacturer", "Manufacturer"),  # Custom Fields
+        ("Model", "Model"),
+        ("Manufacturer's Serial No./Other Identifier", "Manufacturer Serial Number"),
+        ("Firmware Version", "Firmware Version"),
+        ("ACQUISITION DATE", ""),
+        ("ORIGINAL COST", ""),
+        ("comments", ""),
+        ("MIO", ""),
+        ("RDB_Part_Template", "part")  # Inventory
+    ]
+
+    @classmethod
+    def build_csv(cls, csv, objs, CI_mode=False):
+        header_att = cls.header_att.copy()
+        
+        headers, attribs = zip(*header_att)
+        csv.writerow(headers)
+
+        for inventory in objs:
+            # Get the Model, Manufacturer, Manufacturer Serial Number, Firmware Version
+            model_value = inventory.fieldvalues.filter(is_current=True, field__field_name="Model") \
+                          .values_list("field_value", flat=True).first()
+            manu_value = inventory.fieldvalues.filter(is_current=True, field__field_name="Manufacturer") \
+                          .values_list("field_value", flat=True).first()
+            serial_value = inventory.fieldvalues.filter(is_current=True, field__field_name="Manufacturer Serial Number") \
+                          .values_list("field_value", flat=True).first()
+            firmware_value = inventory.fieldvalues.filter(is_current=True, field__field_name="Firmware Version") \
+                          .values_list("field_value", flat=True).first()
+
+            row = []
+            for att in attribs:
+                if att == "Model":
+                    val = model_value
+                    print("model_value: ", model_value, flush=True)
+                elif att == "Manufacturer":
+                    val = manu_value
+                    print("manu_value: ", manu_value, flush=True)
+                elif att == "Manufacturer Serial Number":
+                    val = serial_value
+                    print("serial_value: ", serial_value, flush=True)
+                elif att == "Firmware Version":
+                    val = firmware_value
+                    print("firmware_value: ", firmware_value, flush=True)
+                elif att == "part":
+                    val = inventory.part.part_number if inventory.part else None
+                    print("val :", val, flush=True)
+                else:
+                    val = getattr(inventory, att, None)
+                    print("val :",val, flush=True)
+                if val is None:
+                    val = ""
+                row.append(str(val))
+            csv.writerow(row)
+
 
 # Deployment Bulk Export
 class ExportDeployments(ZipExport):
@@ -807,45 +906,63 @@ class ExportDeployments(ZipExport):
                 if att == "1":
                     val = 1  # versionNumber
                 elif att == "deployment.config_event('Nominal_Depth').config_value":
+                    # Step 1: Retrieve ConfigName, with check for None
                     config_name = ConfigName.objects.filter(
                         name="Nominal Depth",
                         part=depl_obj.inventory.part,
                         config_type="conf",
                     ).first()
-                    config_event = ConfigEvent.objects.filter(
-                        inventory=depl_obj.inventory, deployment=depl_obj.deployment
-                    ).first()
-                    config_val = ConfigValue.objects.filter(
-                        config_event=config_event, config_name=config_name
-                    ).first()
-                    val = config_val.config_value
-
+                    
+                    if config_name is None:
+                        # If ConfigName is missing, set a default/fallback value
+                        val = "N/A"
+                    else:
+                        # Step 2: Retrieve ConfigEvent, with check for None
+                        config_event = ConfigEvent.objects.filter(
+                            inventory=depl_obj.inventory, deployment=depl_obj.deployment
+                        ).first()
+                        
+                        if config_event is None:
+                            # If ConfigEvent is missing, set a default/fallback value
+                            val = "N/A"
+                        else:
+                            # Step 3: Retrieve ConfigValue, with check for None
+                            config_val = ConfigValue.objects.filter(
+                                config_event=config_event, config_name=config_name
+                            ).first()
+                            
+                            # If ConfigValue is found, use config_value; if not, use "N/A"
+                            val = config_val.config_value if config_val else "N/A"
                 else:
+                    # Fallback for other attributes
                     try:
                         val = attrgetter(att)(depl_obj)
                     except AttributeError:
                         val = None
 
+                # Additional formatting for specific types
                 if isinstance(val, dt.datetime):  # dates
                     val = val.replace(
                         tzinfo=None
-                    )  # remove timezone awareness such that
+                    )  # remove timezone awareness
                     val = val.isoformat(
                         timespec="seconds"
-                    )  # +00:00 doesn't appear in iso string
-                elif isinstance(val, float):  # lat,lon
+                    )  # format datetime as ISO string
+                elif isinstance(val, float):  # lat, lon
                     val = "{:.5f}".format(val)
                 elif att in ["cruise_deployed", "cruise_recovered"] and not val:
-                    # if CUID_deployed/recovered not recorded on InventoryDeployment, check parent deployment
+                    # If CUID_deployed/recovered not recorded on InventoryDeployment, check parent deployment
                     try:
                         val = attrgetter("deployment." + att)(depl_obj)
                     except AttributeError:
                         val = None
 
+                # Final fallback for None values
                 val = str(val) if val is not None else ""
 
                 row.append(val)
             return row
+
 
         objs = objs.prefetch_related("build__assembly_revision__assembly")
         assy_names = objs.values_list(

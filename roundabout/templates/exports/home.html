@@ -56,11 +56,22 @@
     <div class="col-9"><p>Downloads a zip of configuration event csv files (incl. constants)</p></div>
   </div>
 
+  <div class="row">
+    <div class="col-3"><p><a type=button class="btn btn-primary" href="{% url 'exports:refdes' %}">Export Reference Designators</a></p></div>
+    <div class="col-9"><p>Downloads a refdes.csv file</p></div>
+  </div>
+
+  <div class="row">
+    <div class="col-3"><p><a type=button class="btn btn-primary" href="{% url 'exports:inventory' %}">Export Bulk Inventory</a></p></div>
+    <div class="col-9"><p>Downloads an Inventory.csv file</p></div>
+  </div>
+
+
   {% if rdb_site_url == "https://obs-rdb.whoi.edu" %}
-    <div class="row">
-      <div class="col-3"><p><a type=button class="btn btn-primary" href="{% url 'exports:obs_allbuilds' %}">Export Builds [OBS]</a></p></div>
-      <div class="col-9"><p>Downloads a zip of OBS specific Build data</p></div>
-    </div>
+  <div class="row">
+    <div class="col-3"><p><a type=button class="btn btn-primary" href="{% url 'exports:obs_allbuilds' %}">Export Builds [OBS]</a></p></div>
+    <div class="col-9"><p>Downloads a zip of OBS specific Build data</p></div>
+  </div>
   {% endif %}
 
   <hr>

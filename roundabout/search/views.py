@@ -617,6 +617,7 @@ class InventoryTableView(GenericSearchTableView):
         "inventory_calibrationevents",
         "inventory_deployments",
         "assembly_part__reference_designator",
+        # "assembly_part__referencedesignatorevents"
     ]
     avail_udf = set()
     choice_fields = {"actions__latest__action_type": Action.ACTION_TYPES}
@@ -675,8 +676,13 @@ class InventoryTableView(GenericSearchTableView):
                 ),
             ),
             dict(
-                value="assembly_part__reference_designator__refdes_name",
-                text="Reference Designator",
+                value="flag",
+                text="Flag",
+                legal_lookup="STR_LOOKUP",
+            ),
+            dict(
+                value="detail",
+                text="Flagged Notes",
                 legal_lookup="STR_LOOKUP",
             ),
             dict(value=None, text="--Part--", disabled=True),

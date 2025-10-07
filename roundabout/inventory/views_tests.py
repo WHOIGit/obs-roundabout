@@ -178,7 +178,7 @@ class InventoryTestResultAjaxCreateView(LoginRequiredMixin, AjaxFormMixin, Creat
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 "message": "Successfully submitted form data.",

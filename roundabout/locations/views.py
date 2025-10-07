@@ -89,7 +89,7 @@ class LocationsAjaxUpdateView(
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 "message": "Successfully submitted form data.",
                 "object_id": self.object.id,
@@ -121,7 +121,7 @@ class LocationsAjaxCreateView(
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 "message": "Successfully submitted form data.",
                 "object_id": self.object.id,
@@ -193,7 +193,7 @@ class LocationsAjaxDeleteFormView(
                 )
                 build.save()
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 "message": "Successfully submitted form data.",
                 "parent_id": location_to_delete.parent_id,

@@ -28,7 +28,7 @@ from django.core.exceptions import ValidationError
 from django.forms.models import inlineformset_factory
 from django.template.defaultfilters import slugify
 from django_summernote.widgets import SummernoteWidget
-from bootstrap_datepicker_plus import DatePickerInput, DateTimePickerInput
+from bootstrap_datepicker_plus.widgets import DatePickerInput, DateTimePickerInput
 from mptt.forms import TreeNodeChoiceField
 
 from .models import Part, PartType, Documentation, Revision

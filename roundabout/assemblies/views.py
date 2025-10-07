@@ -214,7 +214,7 @@ class AssemblyAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFo
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -227,7 +227,7 @@ class AssemblyAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFo
             return response
 
     def form_invalid(self, form, documentation_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if not form.is_valid():
                 # show form errors before formset errors
                 return JsonResponse(form.errors, status=400)
@@ -284,7 +284,7 @@ class AssemblyAjaxCopyView(AssemblyAjaxCreateView):
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -311,7 +311,7 @@ class AssemblyAjaxUpdateView(LoginRequiredMixin, PermissionRequiredMixin, AjaxFo
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -335,6 +335,17 @@ class AssemblyAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin, Delete
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.id,
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+
+        return JsonResponse(data)
+
+    def form_valid(self, form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",
@@ -469,7 +480,7 @@ class AssemblyRevisionAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -482,7 +493,7 @@ class AssemblyRevisionAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin
             return response
 
     def form_invalid(self, form, documentation_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if not form.is_valid():
                 # show form errors before formset errors
                 return JsonResponse(form.errors, status=400)
@@ -529,7 +540,7 @@ class AssemblyRevisionAjaxUpdateView(LoginRequiredMixin, PermissionRequiredMixin
         documentation_form.save()
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -542,7 +553,7 @@ class AssemblyRevisionAjaxUpdateView(LoginRequiredMixin, PermissionRequiredMixin
             return response
 
     def form_invalid(self, form, documentation_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if not form.is_valid():
                 # show form errors before formset errors
                 return JsonResponse(form.errors, status=400)
@@ -565,6 +576,17 @@ class AssemblyRevisionAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.id,
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+
+        return JsonResponse(data)
+
+    def form_valid(self, form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",
@@ -667,7 +689,7 @@ class AssemblyPartAjaxCreateView(LoginRequiredMixin, PermissionRequiredMixin, Aj
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",
@@ -745,7 +767,7 @@ class AssemblyPartAjaxUpdateView(LoginRequiredMixin, PermissionRequiredMixin, Aj
 
         response = HttpResponseRedirect(self.get_success_url())
 
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -765,6 +787,28 @@ class AssemblyPartAjaxDeleteView(LoginRequiredMixin, PermissionRequiredMixin, De
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+
+        # Need to check if there's Inventory on this AssemblyPart. If so, need to bump them off the Build
+        if self.object.inventory.exists():
+            for item in self.object.inventory.all():
+                item.detail = 'Removed from %s' % (item.build)
+                action_record = Action.objects.create(action_type='removefrombuild', detail=item.detail, location=item.location,
+                                                      user=self.request.user, inventory=item)
+                item.build = None
+                item.assembly_part = None
+                item.parent = None
+                item.save()
+
+        data = {
+            'message': "Successfully submitted form data.",
+            'object_type': self.object.get_object_type(),
+            'parent_id': self.object.parent_id,
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self, form):
         self.object = self.get_object()
 
         # Need to check if there's Inventory on this AssemblyPart. If so, need to bump them off the Build
@@ -931,7 +975,7 @@ class EventReferenceDesignatorAdd(LoginRequiredMixin, AjaxFormMixin, CreateView)
         handle_reviewers(form.instance.user_draft, form.instance.user_approver, form.cleaned_data['user_draft'])
         _create_action_history(self.object, Action.ADD, self.request.user)
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -943,7 +987,7 @@ class EventReferenceDesignatorAdd(LoginRequiredMixin, AjaxFormMixin, CreateView)
             return response
 
     def form_invalid(self, form, event_referencedesignator_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -1021,7 +1065,7 @@ class EventReferenceDesignatorUpdate(LoginRequiredMixin, AjaxFormMixin, CreateVi
         for assm in self.object.reference_designator.assembly_parts.all():
             _create_action_history(assm.assemblypart_referencedesignatorevents.first(), Action.UPDATE, self.request.user)
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -1033,7 +1077,7 @@ class EventReferenceDesignatorUpdate(LoginRequiredMixin, AjaxFormMixin, CreateVi
             return response
 
     def form_invalid(self, form, event_referencedesignator_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -1071,6 +1115,17 @@ class EventReferenceDesignatorDelete(LoginRequiredMixin, DeleteView):
     redirect_field_name = 'home'
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.id,
+            'parent_type': 'comment',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
+    def form_valid(self, form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",

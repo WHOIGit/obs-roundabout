@@ -230,6 +230,17 @@ class CommentDelete(LoginRequiredMixin, DeleteView):
         self.object.delete()
         return JsonResponse(data)
 
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'parent_id': self.object.id,
+            'parent_type': 'comment',
+            'object_type': self.object.get_object_type(),
+        }
+        self.object.delete()
+        return JsonResponse(data)
+
     def get_success_url(self):
         return reverse_lazy('inventory:ajax_inventory_detail', args=(self.object.action.inventory.id, ))
 
@@ -244,9 +255,12 @@ class ImportConfigUpdate(LoginRequiredMixin, AjaxFormMixin, UpdateView):
 
     def get(self, request, *args, **kwargs):
         if ImportConfig.objects.exists():
-            self.object = self.get_object()
+            try:
+                self.object = ImportConfig.objects.get(id=1)
+            except:
+              self.object = ImportConfig.objects.create(id=1)  
         else:
-            self.object = ImportConfig.objects.create()
+            self.object = ImportConfig.objects.create(id=1)
         form_class = self.get_form_class()
         form = self.get_form(form_class)
         return self.render_to_response(
@@ -311,7 +325,7 @@ class InvBulkUploadEventUpdate(LoginRequiredMixin, AjaxFormMixin, UpdateView):
         _create_action_history(self.object, Action.UPDATE, self.request.user, filename = file_name)
         job = check_events.delay()
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -324,7 +338,7 @@ class InvBulkUploadEventUpdate(LoginRequiredMixin, AjaxFormMixin, UpdateView):
 
 
     def form_invalid(self, form, bulk_file_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -405,7 +419,7 @@ class PartBulkUploadEventUpdate(LoginRequiredMixin, AjaxFormMixin, UpdateView):
         _create_action_history(self.object, Action.UPDATE, self.request.user)
         job = check_events.delay()
         response = HttpResponseRedirect(self.get_success_url())
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = {
                 'message': "Successfully submitted form data.",
                 'object_id': self.object.id,
@@ -418,7 +432,7 @@ class PartBulkUploadEventUpdate(LoginRequiredMixin, AjaxFormMixin, UpdateView):
 
 
     def form_invalid(self, form, bulk_file_form):
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             if form.errors:
                 data = form.errors
                 return JsonResponse(
@@ -469,6 +483,16 @@ class InvBulkUploadEventDelete(LoginRequiredMixin, AjaxFormMixin, DeleteView):
         job = check_events.delay()
         return JsonResponse(data)
 
+    def form_valid(self,form):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'object_type': 'bulk_upload_event',
+        }
+        self.object.delete()
+        job = check_events.delay()
+        return JsonResponse(data)
+
     def get_success_url(self):
         inv_id = self.kwargs['inv_id']
         return reverse('inventory:ajax_inventory_detail', args=(inv_id, ))
@@ -487,6 +511,16 @@ class PartBulkUploadEventDelete(LoginRequiredMixin, AjaxFormMixin, DeleteView):
         return context
 
     def delete(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        data = {
+            'message': "Successfully submitted form data.",
+            'object_type': 'bulk_upload_event',
+        }
+        self.object.delete()
+        job = check_events.delay()
+        return JsonResponse(data)
+
+    def form_valid(self,form):
         self.object = self.get_object()
         data = {
             'message': "Successfully submitted form data.",

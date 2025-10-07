@@ -67,6 +67,7 @@ var password;
     if ((await driver.findElements(By.css("#djHideToolBarButton"))).length != 0) {
         await driver.findElement(By.css("#djHideToolBarButton")).click();
     }
+    await new Promise(r => setTimeout(r, 2000));
 
     try {
 
@@ -82,6 +83,7 @@ var password;
         await driver.findElement(By.id("id_login")).sendKeys(user);
         await driver.findElement(By.id("id_password")).sendKeys(password);
         await driver.findElement(By.css(".primaryAction")).click();
+        await new Promise(r => setTimeout(r, 2000));
 
         // ADD PARTS TEST
 
@@ -110,7 +112,7 @@ var password;
         }
 
         await driver.findElement(By.id("id_field_default_value")).sendKeys("Teledyne RDI");
-        await driver.findElement(By.id("id_global_for_part_types_4")).click();  //instruments
+        await driver.findElement(By.id("id_global_for_part_types_2")).click();  //instrument
         await driver.findElement(By.css(".btn-primary")).click();
 
         while ((await driver.findElements(By.linkText("Add Custom Field"))).length == 0) {
@@ -133,8 +135,9 @@ var password;
         }
 
         await driver.findElement(By.id("id_field_default_value")).sendKeys("WHLS75-1500");
-        await driver.findElement(By.id("id_global_for_part_types_4")).click();  //instruments
+        await driver.findElement(By.id("id_global_for_part_types_2")).click();  //instrument
         await driver.findElement(By.css(".btn-primary")).click();
+        await new Promise(r => setTimeout(r, 2000));
 
         // Add Computerized Part Type
         await driver.findElement(By.id("navbarAdmintools")).click();
@@ -154,6 +157,7 @@ var password;
         await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.linkText("Add Part Type")).click();
         await driver.findElement(By.css(".btn-primary")).click();
+        await driver.wait(until.elementLocated(By.id("error_1_id_name")));
         assert(await driver.findElement(By.id("error_1_id_name")).getText() == "This field is required.");
         await driver.findElement(By.css(".btn-light")).click();
 
@@ -344,30 +348,22 @@ var password;
         }
 
         // Add & Set the Manufacturer and Model for ADCPS-J
+        /* The following code is deleted because the Manufacturer and Model are now set
+        on Instrument Part creation 
         while ((await driver.findElements(By.linkText("Add New Field"))).length == 0) {
             await new Promise(r => setTimeout(r, 2000));
             console.log("Wait 2 seconds for Add New Field.");
         }
         await driver.findElement(By.linkText("Add New Field")).click();
+        while ((await driver.findElements(By.id("id_user_defined_fields_0"))).length == 0) {
+            await new Promise(r => setTimeout(r, 2000));
+            console.log("Wait 2 seconds for User Defined Fields.");
+        }
+        await driver.findElement(By.id("id_user_defined_fields_0")).click();  //manufacturer
+        await driver.findElement(By.id("id_user_defined_fields_1")).click();  //model
         await new Promise(r => setTimeout(r, 2000));
-        // Find Manufacturer and Model row to select
-        var i = 1;
-        while (true) {
-            if ((await driver.findElement(By.xpath("//div[@id='div_id_user_defined_fields']/div/div[" + i + "]/label")).getText()) == "Manufacturer") {
-                break;
-            }
-            i++;
-        }
-        var j = 1;
-        while (true) {
-            if ((await driver.findElement(By.xpath("//div[@id='div_id_user_defined_fields']/div/div[" + j + "]/label")).getText()) == "Model") {
-                break;
-            }
-            j++;
-        }
-        await driver.findElement(By.id("id_user_defined_fields_" + i)).click();
-        await driver.findElement(By.id("id_user_defined_fields_" + j)).click();
-        await driver.findElement(By.css(".controls > .btn-primary")).click();
+        await driver.findElement(By.css(".controls > .btn-primary")).click(); */
+
         while ((await driver.findElements(By.partialLinkText("Manufacturer"))).length == 0) {
             await new Promise(r => setTimeout(r, 2000));
             console.log("Wait 2 seconds for Manufacturer.");
@@ -434,6 +430,7 @@ var password;
         await driver.findElement(By.id("id_name")).clear();
         await driver.findElement(By.id("id_name")).sendKeys(" ");
         await driver.findElement(By.css(".btn-primary")).click();
+        await driver.wait(until.elementLocated(By.id("error_1_id_name")));
         assert(await driver.findElement(By.id("error_1_id_name")).getText() == "This field is required.");
 
         // Change part type parent
@@ -466,14 +463,15 @@ var password;
         dropdown = await driver.findElement(By.id("id_parent"));
         await dropdown.findElement(By.xpath("//option[. = '---------']")).click();
         await driver.findElement(By.css(".btn-primary")).click();
+        await new Promise(r => setTimeout(r, 2000)); 
 
         // Search for Part Templates and change Part Number
         await driver.findElement(By.id("searchbar-query")).sendKeys("Coastal Mooring");
-        await driver.findElement(By.css(".btn-outline-primary:nth-child(1)")).click();        // 22 | click | linkText=123-456-789 | 
+        await driver.findElement(By.css(".btn-outline-primary:nth-child(1)")).click();
+        await new Promise(r => setTimeout(r, 2000));
         await driver.findElement(By.linkText("123-456-789")).click();
 
-        //        await new Promise(r => setTimeout(r, 20000)); // 1.6
-        while ((await driver.findElements(By.id("action"))).length == 0) // 1.6
+        while ((await driver.findElements(By.id("action"))).length == 0) 
         {
             await new Promise(r => setTimeout(r, 2000));
             console.log("Wait 2 seconds for Search1.");

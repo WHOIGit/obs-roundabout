@@ -201,9 +201,9 @@ var password;
         await driver.findElement(By.id("id_config_names-3-name")).sendKeys("sconf12"); 
         await driver.findElement(By.id("id_config_names-1-name")).clear();
         await driver.findElement(By.id("id_config_names-1-name")).sendKeys("scnst12");
+        await driver.findElement(By.css(".controls > .btn-primary")).click();
         //let encodedString = await driver.takeScreenshot();
         //await fs.writeFileSync('/tests/cscreen.png', encodedString, 'base64');   
-        await driver.findElement(By.css(".controls > .btn-primary")).click(); 
 
    	    while ((await driver.findElements(By.linkText("Configurations / Constants"))).length == 0)
 	    {
@@ -468,6 +468,7 @@ var password;
 	       console.log("Wait 2 seconds for Approved.");
 	    }
         await driver.findElement(By.partialLinkText("1232"));
+        await new Promise(r => setTimeout(r, 2000));
 
         //Approved Flag
         {

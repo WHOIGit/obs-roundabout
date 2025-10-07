@@ -131,7 +131,7 @@ var password;
         }
 
         await driver.findElement(By.id("id_field_default_value")).sendKeys("20004");
-        await driver.findElement(By.id("id_global_for_part_types_6")).click();  //Structural
+        await driver.findElement(By.id("id_global_for_part_types_5")).click();  //Structural
         await driver.findElement(By.css(".btn-primary")).click();
 
         // Import and create new Inventory Item - non CI
@@ -213,8 +213,7 @@ var password;
         var data;
 
         if (myArgs[1] == 'headless') {
-            // Docker/Circleci puts file in the current dir
-            var rdb_inv = process.cwd() + "//RDB_Inventory.csv";
+            var rdb_inv = "/root/Downloads/RDB_Inventory.csv";
         }
         else {
             // Windows command line puts file in the User's default Downloads dir
@@ -383,6 +382,9 @@ var password;
         else {
             console.log("Import and Try to Move Deployed Inventory NOT Successful: Error NOT Flagged.");
         }
+
+        fs.unlinkSync(rdb_inv);
+        await new Promise(r => setTimeout(r, 2000));
 
         // Close browser window
         driver.quit();

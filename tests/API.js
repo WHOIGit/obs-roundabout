@@ -39,8 +39,8 @@ var token;
         const { JSDOM } = jsdom;
         // Required to prevent Error: Cross origin null forbidden thrown by JSDOM
         const { window } = new JSDOM('', {
-            url: "http://localhost:8000",
-            referrer: "http://localhost:8000",
+            url: "http://0.0.0.0:8000",
+            referrer: "http://0.0.0.0:8000",
             contentType: "text/html",
             userAgent: "node.js",
             includeNodeLocations: true
@@ -48,7 +48,7 @@ var token;
 
         var $ = require('jquery')(window);
         
-        const url = 'http://localhost:8000/api/v1/';
+        const url = 'http://0.0.0.0:8000/api/v1/';
 
         // Login and get Api Token
         await $.post(url + 'api-token-auth/', { "username": "admin", "password": "admin" }, function (data) {

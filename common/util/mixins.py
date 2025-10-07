@@ -26,7 +26,7 @@ from django.http import JsonResponse
 class AjaxFormMixin(object):
     def form_invalid(self, form):
         response = super(AjaxFormMixin, self).form_invalid(form)
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             data = form.errors
             return JsonResponse(data, status=400)
         else:
@@ -34,7 +34,7 @@ class AjaxFormMixin(object):
 
     def form_valid(self, form):
         response = super(AjaxFormMixin, self).form_valid(form)
-        if self.request.is_ajax():
+        if self.request.META.get('HTTP_X_REQUESTED_WITH') == 'XMLHttpRequest':
             print(form.cleaned_data)
             data = {
                 'message': "Successfully submitted form data.",

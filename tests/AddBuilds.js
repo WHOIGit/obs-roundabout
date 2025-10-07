@@ -81,6 +81,7 @@ var password;
         await driver.findElement(By.id("id_login")).sendKeys(user);
         await driver.findElement(By.id("id_password")).sendKeys(password);
         await driver.findElement(By.css(".primaryAction")).click();
+        await new Promise(r => setTimeout(r, 2000));
 
         // ADD BUILDS TEST 
 
@@ -492,9 +493,11 @@ var password;
 
         var ele = await driver.findElement(By.xpath("//input[@id='id_date']"));
         var dateString = await ele.getAttribute("value");
-        // Recovery screen date format is 01/05/2021 03:06, trim leading zeroes and time
-        dateString = dateString.replace(/\b0/g, '');
-        dateString = dateString.split(" ")[0];
+        // Recovery screen date format is 01/05/2021
+        var d = new Date(dateString);
+        var day = parseInt(d.getDate(), 10);
+        var month = d.getMonth() + 1;
+        var newDate = month.toString().trim() + "/" + day.toString().trim() + "/" + d.getFullYear();
         await driver.findElement(By.css(".controls > .btn-primary")).click();
 
         // Verify Total Time in Field and Current Deployment Time in Field: 0 days 0 hours
@@ -529,7 +532,7 @@ var password;
 
         // Deployment to Field Date
         try {
-            assert(bodyText.includes(dateString));
+            assert(bodyText.includes(newDate));
         }
         catch (AssertionError) {
             console.log("Possible Error: Expecting Inventory Deployment (1 Day Prior) To Field Date:  " + dateString);
