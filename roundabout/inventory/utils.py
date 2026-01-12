@@ -18,6 +18,7 @@
 # along with ooicgsn-roundabout in the COPYING.md file at the project root.
 # If not, see <http://www.gnu.org/licenses/>.
 """
+
 from django.utils import timezone
 
 from .models import *
@@ -404,28 +405,23 @@ def _create_action_history(
 
         # Update InventoryDeployment record
         if isinstance(obj, Inventory):
+            # Create InventoryDeployment record
+            inventory_deployment = InventoryDeployment.objects.create(
+                deployment=deployment,
+                inventory=obj,
+                assembly_part=obj.assembly_part,
+                deployment_start_date=action_date,
+                deployment_to_field_date=action_date,
+                cruise_deployed=deployment.cruise_deployed,
+            )
 
-            # if the item's build is not already deployed, create a new inventorydeployment record
-            if hasattr(obj,'build'):
-                if obj.build.is_deployed == False:
-                    
-                    # Create InventoryDeployment record
-                    inventory_deployment = InventoryDeployment.objects.create(
-                        deployment=deployment,
-                        inventory=obj,
-                        assembly_part=obj.assembly_part,
-                        deployment_start_date=action_date,
-                        deployment_to_field_date=action_date,
-                        cruise_deployed=deployment.cruise_deployed,
-                    )
-
-                    action_record.inventory_deployment = inventory_deployment
-                    action_record.created_at = action_date
-                    action_record.cruise = inventory_deployment.cruise_deployed
-                    action_record.detail = "%s Cruise: %s" % (
-                        action_record.detail,
-                        inventory_deployment.cruise_deployed,
-                    )
+            action_record.inventory_deployment = inventory_deployment
+            action_record.created_at = action_date
+            action_record.cruise = inventory_deployment.cruise_deployed
+            action_record.detail = "%s Cruise: %s" % (
+                action_record.detail,
+                inventory_deployment.cruise_deployed,
+            )
         action_record.save()
 
     elif action_type == Action.DEPLOYMENTRECOVER:
@@ -454,7 +450,9 @@ def _create_action_history(
                 if deployment_type == Action.BUILD_DEPLOYMENT:
                     inventory_deployment.deployment_recovery_date = action_date
                     if deployment:
-                        inventory_deployment.cruise_recovered = deployment.cruise_recovered
+                        inventory_deployment.cruise_recovered = (
+                            deployment.cruise_recovered
+                        )
                 inventory_deployment.deployment_retire_date = action_date
                 inventory_deployment.save()
                 action_record.inventory_deployment = inventory_deployment
@@ -466,7 +464,6 @@ def _create_action_history(
             action_record.build = obj.get_latest_build()
             action_record.detail = "Recovered from %s. %s" % (deployment, detail)
             action_record.created_at = action_date
-            
 
         action_record.save()
         # Run secondary Action records after completion
