@@ -596,3 +596,22 @@ def logged_user_review_items(logged_user, template_type):
         full_list = list(full_cruise_list)
 
     return full_list
+
+
+def create_inventory_deployments(deployment):
+    print(deployment)
+    # get all the inventory items on the Deployment Build
+    inv = deployment.build.inventory.all()
+    for i in inv:
+        # create a new Inventory Deployment to match the Build Deployment
+        print("create Inventory Dep.")
+        inv_dep = InventoryDeployment.objects.create(
+            deployment_start_date=deployment.deployment_start_date,
+            deployment_burnin_date=deployment.deployment_burnin_date,
+            deployment_to_field_date=deployment.deployment_to_field_date,
+            deployment_recovery_date=deployment.deployment_recovery_date,
+            deployment_retire_date=deployment.deployment_retire_date,
+            deployment=deployment,
+            inventory=i,
+            assembly_part=i.assembly_part,
+        )
