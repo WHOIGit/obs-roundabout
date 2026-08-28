@@ -3,7 +3,7 @@ on:
   push:
     branches:
       - "release-**"
-      - "automated_tests"
+      - "main"
 
 env:
   IMAGE_NAME: obs-roundabout
