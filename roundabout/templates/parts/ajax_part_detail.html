@@ -156,6 +156,23 @@
                         {% endif %}
 
                     </div>
+
+                    <hr>
+                    <h6>History</h6>
+                    <ul class="list-unstyled small mb-0">
+                      {% for event in revision.revision_events.all %}
+                        <li>
+                          Revision {{ revision.revision_code }} {{ event.event_type }}
+                          &mdash;
+                          {% if event.user %}{{ event.user.name|default:event.user.username }}{% else %}unknown user{% endif %}
+                          &mdash;
+                          {{ event.created_at|date:"M d, Y" }}
+                        </li>
+                      {% empty %}
+                        <li class="text-muted">No history recorded.</li>
+                      {% endfor %}
+                    </ul>
+
                     <hr>
                     <div class="ajax-detail-link">
 

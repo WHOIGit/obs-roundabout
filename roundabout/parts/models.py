@@ -170,6 +170,60 @@ class Revision(models.Model):
     def __str__(self):
         return self.revision_code
 
+    # Append a row to this Revision's change history. See RevisionEvent.
+    def log_event(self, event_type, user=None, detail=""):
+        return self.revision_events.create(
+            event_type=event_type, user=user, detail=detail
+        )
+
+
+class RevisionEvent(models.Model):
+    """Append-only change history for a Revision (Work Item 2).
+
+    Mirrors the "current value + full history" pattern used elsewhere in the
+    codebase (userdefinedfields.FieldValue): one row per meaningful change.
+    Only creation and edits of the Revision itself are tracked.
+    """
+
+    CREATED = "created"
+    UPDATED = "updated"
+    EVENT_TYPES = (
+        (CREATED, "created"),
+        (UPDATED, "updated"),
+    )
+
+    revision = models.ForeignKey(
+        Revision,
+        related_name="revision_events",
+        on_delete=models.CASCADE,
+        null=False,
+        blank=False,
+        db_index=True,
+    )
+    event_type = models.CharField(
+        max_length=20, choices=EVENT_TYPES, default=CREATED, db_index=True
+    )
+    user = models.ForeignKey(
+        "users.User",
+        related_name="revision_events",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    created_at = models.DateTimeField(default=timezone.now)
+    detail = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        get_latest_by = "created_at"
+
+    def __str__(self):
+        return "Revision %s %s" % (self.revision.revision_code, self.event_type)
+
+    # method to set the object_type variable to send to Javascript AJAX functions
+    def get_object_type(self):
+        return "revisionevents"
+
 
 class Documentation(models.Model):
     DOC_TYPES = (
