@@ -131,6 +131,17 @@ class Part(models.Model):
         else:
             return self.name
 
+    # Reverse lookup: Assembly Revisions whose bill of materials includes this
+    # Part (at any Part Revision, including BOM slots with no pinned Revision).
+    def get_assembly_revisions_used_in(self):
+        from roundabout.assemblies.models import AssemblyRevision
+
+        return (
+            AssemblyRevision.objects.filter(assembly_parts__part=self)
+            .select_related("assembly")
+            .distinct()
+        )
+
 
 class Revision(models.Model):
     revision_code = models.CharField(
@@ -174,6 +185,17 @@ class Revision(models.Model):
     def log_event(self, event_type, user=None, detail=""):
         return self.revision_events.create(
             event_type=event_type, user=user, detail=detail
+        )
+
+    # Reverse lookup: Assembly Revisions whose bill of materials pins this
+    # specific Part Revision.
+    def get_assembly_revisions_used_in(self):
+        from roundabout.assemblies.models import AssemblyRevision
+
+        return (
+            AssemblyRevision.objects.filter(assembly_parts__revision=self)
+            .select_related("assembly")
+            .distinct()
         )
 
 

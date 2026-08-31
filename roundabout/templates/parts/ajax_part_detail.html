@@ -174,6 +174,20 @@
                     </ul>
 
                     <hr>
+                    <h6>Used in {{ label_assemblies_app_plural }}</h6>
+                    <ul class="list-unstyled small mb-0">
+                      {% for assembly_revision in revision.get_assembly_revisions_used_in %}
+                        <li>
+                          <a href="{% url 'assemblies:assemblyrevision_detail' assembly_revision.id %}">
+                            {{ assembly_revision.assembly.name }} &mdash; Revision {{ assembly_revision.revision_code }}
+                          </a>
+                        </li>
+                      {% empty %}
+                        <li class="text-muted">Not pinned to this Revision in any {{ label_assemblies_app_singular }}.</li>
+                      {% endfor %}
+                    </ul>
+
+                    <hr>
                     <div class="ajax-detail-link">
 
                           <a href="#"
@@ -199,6 +213,21 @@
         </li>
 
     {% endfor %}
+    </ul>
+
+    <hr>
+
+    <h4>Used in {{ label_assemblies_app_plural }}</h4>
+    <ul class="list-group">
+      {% for assembly_revision in part_template.get_assembly_revisions_used_in %}
+        <li class="list-group-item">
+          <a href="{% url 'assemblies:assemblyrevision_detail' assembly_revision.id %}">
+            {{ assembly_revision.assembly.name }} &mdash; Revision {{ assembly_revision.revision_code }}
+          </a>
+        </li>
+      {% empty %}
+        <li class="list-group-item text-muted">This Part is not used in any {{ label_assemblies_app_singular }}.</li>
+      {% endfor %}
     </ul>
 
     <hr>
