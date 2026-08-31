@@ -101,8 +101,10 @@ class AssemblyRevision(models.Model):
         total_cost = 0
 
         for item in tree:
-            revision = item.part.revisions.first()
-            cost = revision.unit_cost
+            # Use the Revision pinned on the BOM slot when set, else the Part's
+            # current Revision.
+            revision = item.revision or item.part.revisions.first()
+            cost = revision.unit_cost if revision else 0
             total_cost = total_cost + cost
 
         return total_cost
@@ -158,6 +160,14 @@ class AssemblyPart(MPTTModel):
         blank=False,
         db_index=True,
     )
+    revision = models.ForeignKey(
+        "parts.Revision",
+        related_name="assembly_parts",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        db_index=True,
+    )
     parent = TreeForeignKey(
         "self",
         related_name="children",
@@ -205,6 +215,7 @@ class AssemblyPart(MPTTModel):
     tracker = FieldTracker(
         fields=[
             "part",
+            "revision",
         ]
     )
 
@@ -222,8 +233,8 @@ class AssemblyPart(MPTTModel):
         tree = self.get_descendants(include_self=True)
         total_cost = 0
         for item in tree:
-            revision = item.part.revisions.first()
-            cost = revision.unit_cost
+            revision = item.revision or item.part.revisions.first()
+            cost = revision.unit_cost if revision else 0
             total_cost = total_cost + cost
         return total_cost
 
