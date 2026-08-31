@@ -241,3 +241,17 @@ class AssemblyPart(MPTTModel):
     def get_descendants_with_self(self):
         tree = self.get_descendants(include_self=True)
         return tree
+
+    # --- Revision-aware eligibility of Inventory for this BOM slot (Item 6) ---
+    # When a Revision is pinned on the slot, only Inventory of that exact
+    # Revision is eligible. When no Revision is pinned (legacy slots), every
+    # Revision is eligible - nothing is hidden.
+    def inventory_revision_filter(self):
+        if self.revision_id:
+            return models.Q(revision=self.revision_id)
+        return models.Q()
+
+    def accepts_inventory_revision(self, inventory_item):
+        if not self.revision_id:
+            return True
+        return inventory_item.revision_id == self.revision_id
