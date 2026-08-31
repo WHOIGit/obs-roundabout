@@ -25,9 +25,9 @@
 # dropping the Revision entirely.
 
 import datetime
-import io
 
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory
 from django.urls import reverse
 from django.utils import timezone
@@ -163,8 +163,9 @@ def test_upload_validation_flags_unknown_revision_code(
         "Serial Number,Part Number,Revision,Location,Notes\r\n"
         "SN-BAD,{pn},ZZ,{loc},\r\n".format(pn=part.part_number, loc=lab_location.name)
     )
-    upload = io.BytesIO(csv_body.encode("utf-8"))
-    upload.name = "bad_revision.csv"
+    upload = SimpleUploadedFile(
+        "bad_revision.csv", csv_body.encode("utf-8"), content_type="text/csv"
+    )
 
     client.post(
         reverse("admintools:import_inventory_upload"),
