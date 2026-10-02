@@ -233,6 +233,7 @@ class AssemblyPart(MPTTModel):
         tree = self.get_descendants(include_self=True)
         total_cost = 0
         for item in tree:
+            # .first() is the newest Revision (Meta ordering is -created_at)
             revision = item.revision or item.part.revisions.first()
             cost = revision.unit_cost if revision else 0
             total_cost = total_cost + cost
@@ -251,6 +252,8 @@ class AssemblyPart(MPTTModel):
             return models.Q(revision=self.revision_id)
         return models.Q()
 
+    # Note: Inventory.revision is nullable (legacy items), so an item with no
+    # Revision does NOT satisfy a slot that pins one.
     def accepts_inventory_revision(self, inventory_item):
         if not self.revision_id:
             return True

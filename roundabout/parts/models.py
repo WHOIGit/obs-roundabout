@@ -188,7 +188,8 @@ class Revision(models.Model):
         )
 
     # Reverse lookup: Assembly Revisions whose bill of materials pins this
-    # specific Part Revision.
+    # specific Part Revision. Slots with no pinned Revision are not included;
+    # use Part.get_assembly_revisions_used_in() for those.
     def get_assembly_revisions_used_in(self):
         from roundabout.assemblies.models import AssemblyRevision
 

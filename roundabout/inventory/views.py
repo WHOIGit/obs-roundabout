@@ -1393,6 +1393,8 @@ class InventoryAjaxAddToBuildListView(LoginRequiredMixin, TemplateView):
             assembly_parts = (
                 AssemblyPart.objects.filter(part=inventory_item.part)
                 .filter(assembly_revision__builds__in=builds)
+                # Same rule as AssemblyPart.accepts_inventory_revision: unpinned
+                # slots accept any Revision, pinned slots need an exact match
                 .filter(
                     Q(revision__isnull=True) | Q(revision=inventory_item.revision_id)
                 )
